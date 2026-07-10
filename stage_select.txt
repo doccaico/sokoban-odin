@@ -1,0 +1,44 @@
+			if rl.IsKeyPressed(.UP) {
+				selected_stage = (selected_stage + 1) % MAX_LEVELS
+			}
+			if rl.IsKeyPressed(.DOWN) {
+				selected_stage = (selected_stage + 1) % MAX_LEVELS
+			}
+			if rl.IsKeyPressed(.RIGHT) {
+				selected_stage = (selected_stage + 1) % MAX_LEVELS
+			}
+			if rl.IsKeyPressed(.LEFT) {
+				selected_stage = (selected_stage - 1 + MAX_LEVELS) % MAX_LEVELS
+			}
+
+			if rl.IsKeyPressed(.ENTER) || rl.IsKeyPressed(.SPACE) {
+				current_level = selected_stage
+				current_state = .Gameplay // ゲームプレイ画面へ遷移
+			}
+
+
+
+
+			MAX_MENU_X: int : 2
+
+			// ステージを横並びのリストで描画
+			for i := 0; i < MAX_LEVELS; i += 1 {
+				x_pos := i32(150 + (i * 120)) // 横に並べる座標
+				y_pos := i32(200)
+
+				color := rl.DARKGRAY
+				font_size: i32 = 20
+
+				// 選択中のステージは強調表示
+				if i == selected_stage {
+					color = rl.RED
+					font_size = 28
+					rl.DrawRectangleLines(x_pos - 10, y_pos - 10, 100, 50, rl.RED)
+				}
+
+				// Odinの c_str() または文字スライスを、fmt.ctprintf で C文字列に変換
+				stage_str := fmt.ctprintf("%02d", i + 1)
+				rl.DrawText(stage_str, x_pos, y_pos, font_size, color)
+			}
+
+			rl.DrawText("PRESS ENTER TO START", 200, 400, 20, rl.GRAY)

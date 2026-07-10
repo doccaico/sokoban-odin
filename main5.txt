@@ -8,7 +8,7 @@ WINDOW_WIDTH: int : 640
 WINDOW_HEIGHT: int : 960
 TILE_SIZE: int : 64
 
-MENU_COLS: int : 5
+MAX_MENU_X: int : 2
 
 
 Game_State :: enum {
@@ -16,21 +16,6 @@ Game_State :: enum {
 	Gameplay,
 	Clear,
 }
-
-// respawn_player :: proc(level: int, player_dir_row: int, move_dir: rl.Vector2) {
-// 	start_grid := PLAYER_START_GRID[level]
-// 	p_grid_x = int(start_grid.x)
-// 	p_grid_y = int(start_grid.y)
-//
-// 	offset_x, offset_y := get_stage_offset(current_level)
-// 	player_pos = rl.Vector2 {
-// 		f32(p_grid_x * TILE_SIZE) + offset_x,
-// 		f32(p_grid_y * TILE_SIZE) + offset_y,
-// 	}
-//
-// 	player_dir_row = PLAYER_DOWN
-// 	move_dir = {0, 0}
-// }
 
 // すべてのゴールの上に荷物があるかチェックする
 check_stage_clear :: proc(level: int) -> bool {
@@ -45,6 +30,7 @@ check_stage_clear :: proc(level: int) -> bool {
 			}
 		}
 	}
+
 	// すべてのゴールの上に荷物があればクリア
 	return true
 }
@@ -96,7 +82,7 @@ main :: proc() {
 	// 現在の状態(State)
 	current_state := Game_State.Stage_Select
 	// 選択中のステージ
-	selected_stage := 0
+	selected_stage := rl.Vector2{0, 0}
 
 	// プレイヤーの初期グリッド位置（3マス目、3マス目）
 	start_grid := PLAYER_START_GRID[current_level]
@@ -129,102 +115,44 @@ main :: proc() {
 	for !rl.WindowShouldClose() {
 
 		if current_state == .Stage_Select {
-			// 総行数を計算（5ステージで2列なら 3行 になる）
-			total_rows := (MAX_LEVELS + MENU_COLS - 1) / MENU_COLS
-
-			// --- 右移動 ---
-			if rl.IsKeyPressed(.RIGHT) {
-				// 現在の行（0行目、1行目...）を特定
-				current_row := selected_stage / MENU_COLS
-
-				// 同一行内での次のインデックス
-				next_in_row := selected_stage + 1
-
-				// 次のインデックスが「次の行」に行く、または「最大ステージ数」を超える場合
-				if (next_in_row / MENU_COLS != current_row) || (next_in_row >= MAX_LEVELS) {
-					// 同じ行の左端（先頭）に戻す
-					selected_stage = current_row * MENU_COLS
-				} else {
-					selected_stage = next_in_row
-				}
-			}
-
-			// --- 左移動 ---
-			if rl.IsKeyPressed(.LEFT) {
-				current_row := selected_stage / MENU_COLS
-
-				// 現在すでにその行の左端（先頭）にいる場合
-				if selected_stage == current_row * MENU_COLS {
-					// 同じ行の右端にループさせる
-					right_end_in_row := (current_row * MENU_COLS) + (MENU_COLS - 1)
-
-					// もし右端のステージデータが存在しない場合（奇数総数で05を選択中の06など）は、存在する最後のステージにする
-					if right_end_in_row >= MAX_LEVELS {
-						selected_stage = MAX_LEVELS - 1
-					} else {
-						selected_stage = right_end_in_row
-					}
-				} else {
-					selected_stage -= 1
-				}
-			}
-
-			// --- 下移動 ---
-			if rl.IsKeyPressed(.DOWN) {
-				current_col := selected_stage % MENU_COLS
-				next_in_col := selected_stage + MENU_COLS
-
-				// 下に進むと最大数を超える、または完全に画面外に行く場合
-				if next_in_col >= MAX_LEVELS {
-					// 同じ列の最上段（0行目）に戻す
-					selected_stage = current_col
-				} else {
-					selected_stage = next_in_col
-				}
-			}
-
-			// --- 上移動 ---
 			if rl.IsKeyPressed(.UP) {
-				current_col := selected_stage % MENU_COLS
-
-				// すでに最上段（0行目）にいる場合
-				if selected_stage - MENU_COLS < 0 {
-					// 同じ列の「最下段の行」を計算
-					target_idx := current_col + ((total_rows - 1) * MENU_COLS)
-
-					// 計算した最下段の要素が、最大ステージ数を超えて存在しない場合（例: 06番など）
-					if target_idx >= MAX_LEVELS {
-						// ひとつ上の行の同じ列（例: 04番）に落とし込む
-						selected_stage = target_idx - MENU_COLS
-					} else {
-						selected_stage = target_idx
-					}
-				} else {
-					selected_stage -= MENU_COLS
-				}
+				// selected_stage = (selected_stage + 1) % MAX_LEVELS
+				// if selected_stage.y - 1 >= 0 do selected_stage.y -= 1
+				selected_stage.y += 1
+			}
+			if rl.IsKeyPressed(.DOWN) {
+				// selected_stage = (selected_stage + 1) % MAX_LEVELS
+				// fmt.println("remainder: ", remainder)
+				// max_y :=
+				// remainder == 0 ? int(selected_stage.y) * MAX_MENU_X : int(selected_stage.y) * MAX_MENU_X + remainder
+				// fmt.println("max_y: ", max_y)
+				// selected_stage.y += 1
+				// remainder := MAX_LEVELS % MAX_MENU_X
+				// if remainder != 0 {
+				// }
+				selected_stage.y -= 1
+			}
+			if rl.IsKeyPressed(.RIGHT) {
+				// selected_stage = (selected_stage + 1) % MAX_LEVELS
+				selected_stage.x += 1
+			}
+			if rl.IsKeyPressed(.LEFT) {
+				// selected_stage = (selected_stage - 1 + MAX_LEVELS) % MAX_LEVELS
+				selected_stage.x -= 1
 			}
 
-			// --- 決定処理 ---
 			if rl.IsKeyPressed(.ENTER) || rl.IsKeyPressed(.SPACE) {
-				current_state = .Gameplay
-				current_level = selected_stage
-				// respawn_player(current_level, &player_dir_row, &move_dir)
-
-				start_grid := PLAYER_START_GRID[current_level]
-				p_grid_x = int(start_grid.x)
-				p_grid_y = int(start_grid.y)
-
-				offset_x, offset_y := get_stage_offset(current_level)
-				player_pos = rl.Vector2 {
-					f32(p_grid_x * TILE_SIZE) + offset_x,
-					f32(p_grid_y * TILE_SIZE) + offset_y,
+				count := 0
+				for i := 0; i < int(selected_stage.y); i += 1 {
+					for j := 0; j < int(selected_stage.x); j += 1 {
+						count += 1
+					}
 				}
-
-				player_dir_row = PLAYER_DOWN
-				move_dir = {0, 0}
-
-
+				if int(selected_stage.x) < MAX_MENU_X do count -= (MAX_MENU_X - int(selected_stage.x))
+				current_level = count
+				current_state = .Gameplay // ゲームプレイ画面へ遷移
 			}
+
 		} else if current_state == .Gameplay {
 			if !is_moving {
 				if rl.IsKeyDown(.LEFT) {
@@ -365,76 +293,63 @@ main :: proc() {
 		// Render pass
 		rl.BeginDrawing()
 		rl.ClearBackground({30, 30, 45, 255})
-		fmt.println(p_grid_x, p_grid_y)
 
 		if current_state == .Stage_Select {
 			total_menu := 0
 			x_pos := 150
 			y_pos := 200
 
-			// メニュー全体を中央寄せするための基準座標の計算
-			item_width :: 70
-			item_height :: 45
-			spacing_x :: 40
-			spacing_y :: 30
-
-			// 2列分の総幅
-			total_width := (MENU_COLS * item_width) + ((MENU_COLS - 1) * spacing_x)
-			menu_start_x := (WINDOW_WIDTH - total_width) / 2
-			menu_start_y := 250 // 任意の開始縦位置
-
-			MENU_FONT_SIZE: i32 : 25
-
 			for i := 0; i < MAX_LEVELS; i += 1 {
-				// インデックスから「何列目」「何行目」かを算出する
-				col := i % MENU_COLS
-				row := i / MENU_COLS
 
-				// グリッド座標の計算
-				x_pos := i32(menu_start_x + (col * (item_width + spacing_x)))
-				y_pos := i32(menu_start_y + (row * (item_height + spacing_y)))
+				color := rl.DARKGRAY
+				font_size: i32 = 20
 
-				// --- あとはこの x_pos, y_pos を使って枠線や文字を描画するだけ ---
-				is_selected := (i == selected_stage)
-				color := is_selected ? rl.LIME : rl.DARKGRAY
+				// original
+				count := 0
+				// fmt.println(count)
+				// if int(selected_stage.x) != 0 && int(selected_stage.x) < MAX_MENU_X do count -= (MAX_MENU_X - int(selected_stage.x))
+				// int(selected_stage.y * selected_stage.x) % MAX_MENU_X
+				for i := 0; i < int(selected_stage.y); i += 1 {
+					count += MAX_MENU_X
+				}
+				// for i := 0; i < int(selected_stage.x); i += 1 {
+				// 	count += 1
+				// }
+				// if count != 0 {
+				if int(selected_stage.x) > 0 {
+					count = count + (int(selected_stage.x) % MAX_MENU_X)
+				}
+				// }
+				// count =
+				// 	int(selected_stage.y * selected_stage.x) -
+				// 	(int(selected_stage.y * selected_stage.x) % MAX_MENU_X)
+				// if int(selected_stage.x) <= MAX_MENU_X do count -= MAX_MENU_X - int(selected_stage.x)
+				// fmt.println(count)
 
-				// 選択中の赤い枠線（画像のようなデザイン）
-				if is_selected {
-					rl.DrawRectangleLinesEx(
-						rl.Rectangle{f32(x_pos), f32(y_pos), item_width, item_height},
-						2,
-						color,
-					)
+				// 選択中のステージは強調表示
+				if i == count {
+					color = rl.RED
+					font_size = 28
+					rl.DrawRectangleLines(i32(x_pos - 10), i32(y_pos - 10), 100, 50, rl.RED)
 				}
 
+				// Odinの c_str() または文字スライスを、fmt.ctprintf で C文字列に変換
 				stage_str := fmt.ctprintf("%02d", i + 1)
-				stage_width := rl.MeasureText(stage_str, MENU_FONT_SIZE)
-				stage_x := (item_width - stage_width) / 2
-				// rl.DrawText(stage_str, i32(x_pos) + 22, i32(y_pos) + 12, MENU_FONT_SIZE, color)
-				rl.DrawText(
-					stage_str,
-					i32(x_pos) + stage_x,
-					i32(y_pos) + 12,
-					MENU_FONT_SIZE,
-					color,
-				)
+				rl.DrawText(stage_str, i32(x_pos), i32(y_pos), font_size, color)
+
+				total_menu += 1
+				if (total_menu) % (MAX_MENU_X) == 0 {
+					x_pos = 150
+					y_pos += 50
+					total_menu = 0
+					continue
+
+				}
+				x_pos += (total_menu * 120)
+				fmt.println(selected_stage)
 			}
 
-			// TITLE
-			TITLE_TEXT :: "SIMPLE SOKOBAN"
-			TITLE_FONT_SIZE: i32 : 30
-			title_width := rl.MeasureText(fmt.ctprintf("%s", TITLE_TEXT), TITLE_FONT_SIZE)
-			title_x := (i32(WINDOW_WIDTH) - title_width) / 2
-			title_y := i32(100)
-			rl.DrawText(cstring(TITLE_TEXT), title_x, title_y, TITLE_FONT_SIZE, rl.GRAY)
-
-			// INFO
-			INFO_TEXT :: "PRESS ENTER (SPACE) TO START"
-			INFO_FONT_SIZE: i32 : 20
-			info_width := rl.MeasureText(fmt.ctprintf("%s", INFO_TEXT), INFO_FONT_SIZE)
-			info_x := (i32(WINDOW_WIDTH) - info_width) / 2
-			info_y := i32(WINDOW_HEIGHT - 100)
-			rl.DrawText(cstring(INFO_TEXT), info_x, info_y, INFO_FONT_SIZE, rl.GRAY)
+			rl.DrawText("PRESS ENTER TO START", 200, 400, 20, rl.GRAY)
 
 		} else if current_state == .Gameplay {
 			// 3. ステージを描画してから、その上にプレイヤーを描画する
