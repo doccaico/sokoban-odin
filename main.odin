@@ -11,21 +11,93 @@ TILE_SIZE: int : 64
 MENU_COLS: int : 5
 
 
+Game :: struct {
+	// 現在のレベル
+	current_level:    int,
+	// 現在の状態(State)
+	current_state:    Game_State,
+	// 選択中のステージ
+	selected_stage:   int,
+	// プレイヤーの初期グリッド位置(例: 3マス目、3マス目)
+	player_grid_x:    int,
+	player_grid_y:    int,
+	// プレイヤーのポジション(px)
+	player_pos:       rl.Vector2,
+	// 動いている最中かどうか
+	is_moving:        bool,
+	// 動く方向
+	move_dir:         rl.Vector2,
+	// 動いたピクセル
+	moved_pixels:     int,
+	// プレイヤーの向き
+	player_dir_row:   int,
+
+	// 荷物移動の管理用変数
+	// 現在荷物を押しているか
+	is_pushing:       bool,
+	// 押している荷物の元のグリッド
+	cargo_grid_x:     int,
+	cargo_grid_y:     int,
+	// 荷物の動的な描画座標
+	cargo_render_pos: rl.Vector2,
+
+	// 現在のフレームとアニメーションのタイマー
+	current_frame:    int,
+	anim_timer:       int,
+
+	// リソース
+	block_tilemap:    rl.Texture2D,
+	player_tilemap:   rl.Texture2D,
+}
+
+
 Game_State :: enum {
 	Stage_Select,
 	Gameplay,
 	Clear,
 }
 
+game_init :: proc() -> Game {
+
+	game := Game {
+		current_level    = 0,
+		current_state    = .Stage_Select,
+		selected_stage   = 0,
+		is_moving        = false,
+		move_dir         = rl.Vector2{0, 0},
+		moved_pixels     = 0,
+		player_dir_row   = PLAYER_DOWN,
+		is_pushing       = false,
+		cargo_grid_x     = -1,
+		cargo_grid_y     = -1,
+		cargo_render_pos = rl.Vector2{0, 0},
+		current_frame    = 0,
+		anim_timer       = 0,
+	}
+
+	start_grid := PLAYER_START_GRID[game.current_level]
+	game.player_grid_x = int(start_grid.x)
+	game.player_grid_y = int(start_grid.y)
+
+	// ピクセル座標に変換し、マップのオフセットを足す（これでステージのマスと完璧に重なる）
+	offset_x, offset_y := get_stage_offset(game.current_level)
+	game.player_pos = rl.Vector2 {
+		f32(game.player_grid_x * TILE_SIZE) + offset_x,
+		f32(game.player_grid_y * TILE_SIZE) + offset_y,
+	}
+
+	return game
+}
+
 // respawn_player :: proc(level: int, player_dir_row: int, move_dir: rl.Vector2) {
 // 	start_grid := PLAYER_START_GRID[level]
-// 	p_grid_x = int(start_grid.x)
-// 	p_grid_y = int(start_grid.y)
+// 	player_grid_x = int(start_grid.x)
+// 	player_grid_y = int(start_grid.y)
 //
 // 	offset_x, offset_y := get_stage_offset(current_level)
 // 	player_pos = rl.Vector2 {
-// 		f32(p_grid_x * TILE_SIZE) + offset_x,
-// 		f32(p_grid_y * TILE_SIZE) + offset_y,
+// 		f32(player_grid_x * TILE_SIZE) + offset_x,
+// 		f32(player_grid_y * TILE_SIZE) + offset_y,
 // 	}
 //
 // 	player_dir_row = PLAYER_DOWN
@@ -85,266 +157,231 @@ main :: proc() {
 	defer rl.CloseWindow()
 	rl.SetTargetFPS(60)
 
-	block_tilemap := rl.LoadTexture("assets/block.png")
-	defer rl.UnloadTexture(block_tilemap)
+	game := game_init()
 
-	player_tilemap := rl.LoadTexture("assets/player.png")
-	defer rl.UnloadTexture(player_tilemap)
+	game.block_tilemap = rl.LoadTexture("assets/block.png")
+	defer rl.UnloadTexture(game.block_tilemap)
+	game.player_tilemap = rl.LoadTexture("assets/player.png")
+	defer rl.UnloadTexture(game.player_tilemap)
 
-	// 現在のレベル
-	current_level := 0
-	// 現在の状態(State)
-	current_state := Game_State.Stage_Select
-	// 選択中のステージ
-	selected_stage := 0
-
-	// プレイヤーの初期グリッド位置（3マス目、3マス目）
-	start_grid := PLAYER_START_GRID[current_level]
-	p_grid_x := int(start_grid.x)
-	p_grid_y := int(start_grid.y)
-
-	// ピクセル座標に変換し、マップのオフセットを足す（これでステージのマスと完璧に重なります）
-	offset_x, offset_y := get_stage_offset(current_level)
-	player_pos := rl.Vector2 {
-		f32(p_grid_x * TILE_SIZE) + offset_x,
-		f32(p_grid_y * TILE_SIZE) + offset_y,
-	}
-
-	is_moving := false
-	move_dir := rl.Vector2{0, 0}
-	moved_pixels := 0
-
-	current_frame := 0
-	anim_timer := 0
-
-	// プレイヤーの向き
-	player_dir_row := PLAYER_DOWN
-
-	// 荷物移動の管理用変数
-	is_pushing := false // 現在荷物を押しているか
-	cargo_grid_x := -1 // 押している荷物の元のXグリッド
-	cargo_grid_y := -1 // 押している荷物の元のYグリッド
-	cargo_render_pos := rl.Vector2{0, 0} // 荷物の動的な描画座標
 
 	for !rl.WindowShouldClose() {
 
-		if current_state == .Stage_Select {
+		if game.current_state == .Stage_Select {
 			// 総行数を計算（5ステージで2列なら 3行 になる）
 			total_rows := (MAX_LEVELS + MENU_COLS - 1) / MENU_COLS
 
 			// --- 右移動 ---
 			if rl.IsKeyPressed(.RIGHT) {
 				// 現在の行（0行目、1行目...）を特定
-				current_row := selected_stage / MENU_COLS
+				current_row := game.selected_stage / MENU_COLS
 
 				// 同一行内での次のインデックス
-				next_in_row := selected_stage + 1
+				next_in_row := game.selected_stage + 1
 
 				// 次のインデックスが「次の行」に行く、または「最大ステージ数」を超える場合
 				if (next_in_row / MENU_COLS != current_row) || (next_in_row >= MAX_LEVELS) {
 					// 同じ行の左端（先頭）に戻す
-					selected_stage = current_row * MENU_COLS
+					game.selected_stage = current_row * MENU_COLS
 				} else {
-					selected_stage = next_in_row
+					game.selected_stage = next_in_row
 				}
 			}
 
 			// --- 左移動 ---
 			if rl.IsKeyPressed(.LEFT) {
-				current_row := selected_stage / MENU_COLS
+				current_row := game.selected_stage / MENU_COLS
 
 				// 現在すでにその行の左端（先頭）にいる場合
-				if selected_stage == current_row * MENU_COLS {
+				if game.selected_stage == current_row * MENU_COLS {
 					// 同じ行の右端にループさせる
 					right_end_in_row := (current_row * MENU_COLS) + (MENU_COLS - 1)
 
 					// もし右端のステージデータが存在しない場合（奇数総数で05を選択中の06など）は、存在する最後のステージにする
 					if right_end_in_row >= MAX_LEVELS {
-						selected_stage = MAX_LEVELS - 1
+						game.selected_stage = MAX_LEVELS - 1
 					} else {
-						selected_stage = right_end_in_row
+						game.selected_stage = right_end_in_row
 					}
 				} else {
-					selected_stage -= 1
+					game.selected_stage -= 1
 				}
 			}
 
 			// --- 下移動 ---
 			if rl.IsKeyPressed(.DOWN) {
-				current_col := selected_stage % MENU_COLS
-				next_in_col := selected_stage + MENU_COLS
+				current_col := game.selected_stage % MENU_COLS
+				next_in_col := game.selected_stage + MENU_COLS
 
 				// 下に進むと最大数を超える、または完全に画面外に行く場合
 				if next_in_col >= MAX_LEVELS {
 					// 同じ列の最上段（0行目）に戻す
-					selected_stage = current_col
+					game.selected_stage = current_col
 				} else {
-					selected_stage = next_in_col
+					game.selected_stage = next_in_col
 				}
 			}
 
 			// --- 上移動 ---
 			if rl.IsKeyPressed(.UP) {
-				current_col := selected_stage % MENU_COLS
+				current_col := game.selected_stage % MENU_COLS
 
 				// すでに最上段（0行目）にいる場合
-				if selected_stage - MENU_COLS < 0 {
+				if game.selected_stage - MENU_COLS < 0 {
 					// 同じ列の「最下段の行」を計算
 					target_idx := current_col + ((total_rows - 1) * MENU_COLS)
 
 					// 計算した最下段の要素が、最大ステージ数を超えて存在しない場合（例: 06番など）
 					if target_idx >= MAX_LEVELS {
 						// ひとつ上の行の同じ列（例: 04番）に落とし込む
-						selected_stage = target_idx - MENU_COLS
+						game.selected_stage = target_idx - MENU_COLS
 					} else {
-						selected_stage = target_idx
+						game.selected_stage = target_idx
 					}
 				} else {
-					selected_stage -= MENU_COLS
+					game.selected_stage -= MENU_COLS
 				}
 			}
 
 			// --- 決定処理 ---
 			if rl.IsKeyPressed(.ENTER) || rl.IsKeyPressed(.SPACE) {
-				current_state = .Gameplay
-				current_level = selected_stage
+				game.current_state = .Gameplay
+				game.current_level = game.selected_stage
 				// respawn_player(current_level, &player_dir_row, &move_dir)
 
-				start_grid := PLAYER_START_GRID[current_level]
-				p_grid_x = int(start_grid.x)
-				p_grid_y = int(start_grid.y)
+				start_grid := PLAYER_START_GRID[game.current_level]
+				game.player_grid_x = int(start_grid.x)
+				game.player_grid_y = int(start_grid.y)
 
-				offset_x, offset_y := get_stage_offset(current_level)
-				player_pos = rl.Vector2 {
-					f32(p_grid_x * TILE_SIZE) + offset_x,
-					f32(p_grid_y * TILE_SIZE) + offset_y,
+				offset_x, offset_y := get_stage_offset(game.current_level)
+				game.player_pos = rl.Vector2 {
+					f32(game.player_grid_x * TILE_SIZE) + offset_x,
+					f32(game.player_grid_y * TILE_SIZE) + offset_y,
 				}
 
-				player_dir_row = PLAYER_DOWN
-				move_dir = {0, 0}
+				game.player_dir_row = PLAYER_DOWN
+				game.move_dir = {0, 0}
 
 
 			}
-		} else if current_state == .Gameplay {
-			if !is_moving {
+		} else if game.current_state == .Gameplay {
+			if !game.is_moving {
 				if rl.IsKeyDown(.LEFT) {
-					move_dir = {-1, 0}
-					player_dir_row = PLAYER_LEFT
+					game.move_dir = {-1, 0}
+					game.player_dir_row = PLAYER_LEFT
 				} else if rl.IsKeyDown(.RIGHT) {
-					move_dir = {1, 0}
-					player_dir_row = PLAYER_RIGHT
+					game.move_dir = {1, 0}
+					game.player_dir_row = PLAYER_RIGHT
 				} else if rl.IsKeyDown(.UP) {
-					move_dir = {0, -1}
-					player_dir_row = PLAYER_UP
+					game.move_dir = {0, -1}
+					game.player_dir_row = PLAYER_UP
 				} else if rl.IsKeyDown(.DOWN) {
-					move_dir = {0, 1}
-					player_dir_row = PLAYER_DOWN
+					game.move_dir = {0, 1}
+					game.player_dir_row = PLAYER_DOWN
 				}
 
-				if move_dir != {0, 0} {
-					next_x := p_grid_x + int(move_dir.x)
-					next_y := p_grid_y + int(move_dir.y)
+				if game.move_dir != {0, 0} {
+					next_x := game.player_grid_x + int(game.move_dir.x)
+					next_y := game.player_grid_y + int(game.move_dir.y)
 					fmt.println(next_x, next_y)
 
 					// レイヤー1（壁）のデータが 1（壁ID）でないかチェック
 					// 条件分岐の整理：壁 -> 荷物 -> 床 の順番にきれいに流します
-					if STAGES[current_level][LAYER_WALL_ID][next_y][next_x] == TILE_WALL_ID {
+					if STAGES[game.current_level][LAYER_WALL_ID][next_y][next_x] == TILE_WALL_ID {
 						// 進行先に壁がある場合
-						move_dir = {0, 0}
-					} else if STAGES[current_level][LAYER_CARGO_ID][next_y][next_x] ==
+						game.move_dir = {0, 0}
+					} else if STAGES[game.current_level][LAYER_CARGO_ID][next_y][next_x] ==
 					   TILE_CARGO_ID {
 						// 進行先に荷物（ID: 3）がある場合
-						cargo_next_x := next_x + int(move_dir.x)
-						cargo_next_y := next_y + int(move_dir.y)
+						cargo_next_x := next_x + int(game.move_dir.x)
+						cargo_next_y := next_y + int(game.move_dir.y)
 
 						// 荷物の先が「壁」でも「別の荷物」でもない場合のみ押せる
-						if STAGES[current_level][LAYER_WALL_ID][cargo_next_y][cargo_next_x] !=
+						if STAGES[game.current_level][LAYER_WALL_ID][cargo_next_y][cargo_next_x] !=
 							   TILE_WALL_ID &&
-						   STAGES[current_level][LAYER_CARGO_ID][cargo_next_y][cargo_next_x] !=
+						   STAGES[game.current_level][LAYER_CARGO_ID][cargo_next_y][cargo_next_x] !=
 							   TILE_CARGO_ID {
-							is_moving = true
-							is_pushing = true
-							cargo_grid_x = next_x
-							cargo_grid_y = next_y
+							game.is_moving = true
+							game.is_pushing = true
+							game.cargo_grid_x = next_x
+							game.cargo_grid_y = next_y
 
-							offset_x, offset_y := get_stage_offset(current_level)
+							offset_x, offset_y := get_stage_offset(game.current_level)
 							// fmt.println(offset_x, offset_y)
-							cargo_render_pos = rl.Vector2 {
-								f32(cargo_grid_x * TILE_SIZE) + offset_x,
-								f32(cargo_grid_y * TILE_SIZE) + offset_y,
+							game.cargo_render_pos = rl.Vector2 {
+								f32(game.cargo_grid_x * TILE_SIZE) + offset_x,
+								f32(game.cargo_grid_y * TILE_SIZE) + offset_y,
 							}
-							moved_pixels = 0
+							game.moved_pixels = 0
 						} else {
 							// 荷物の先が詰まっていて押せない
-							move_dir = {0, 0}
+							game.move_dir = {0, 0}
 						}
 					} else {
 						// 進行先が何もない空間（床）の場合
-						is_moving = true
-						is_pushing = false
-						moved_pixels = 0
+						game.is_moving = true
+						game.is_pushing = false
+						game.moved_pixels = 0
 					}
 
-					if !is_moving do current_frame = 0
+					if !game.is_moving do game.current_frame = 0
 
 				} else {
-					current_frame = 0
+					game.current_frame = 0
 				}
 			}
 
 			// 2. 移動中の処理（毎フレーム4ピクセルずつ完全に等速移動）
-			if is_moving {
-				player_pos += move_dir * 4
+			if game.is_moving {
+				game.player_pos += game.move_dir * 4
 
 				// プレイヤーと一緒に荷物も4pxずつ滑らかに移動させる
-				if is_pushing {
-					cargo_render_pos += move_dir * 4
+				if game.is_pushing {
+					game.cargo_render_pos += game.move_dir * 4
 				}
 
-				moved_pixels += 4
+				game.moved_pixels += 4
 
-				anim_timer += 1
-				if anim_timer >= 4 {
-					anim_timer = 0
-					current_frame = (current_frame + 1) % 3
+				game.anim_timer += 1
+				if game.anim_timer >= 4 {
+					game.anim_timer = 0
+					game.current_frame = (game.current_frame + 1) % 3
 				}
 
 				// ちょうど64px移動しきったら自動停止し、グリッド座標の内部データを更新
-				if moved_pixels >= TILE_SIZE {
+				if game.moved_pixels >= TILE_SIZE {
 					// 荷物を押していた場合、移動完了した瞬間にマップデータを書き換える
-					if is_pushing {
-						next_cargo_x := cargo_grid_x + int(move_dir.x)
-						next_cargo_y := cargo_grid_y + int(move_dir.y)
+					if game.is_pushing {
+						next_cargo_x := game.cargo_grid_x + int(game.move_dir.x)
+						next_cargo_y := game.cargo_grid_y + int(game.move_dir.y)
 
-						STAGES[current_level][LAYER_CARGO_ID][cargo_grid_y][cargo_grid_x] =
+						STAGES[game.current_level][LAYER_CARGO_ID][game.cargo_grid_y][game.cargo_grid_x] =
 							TILE_NONE_ID // 元の位置を空に
-						STAGES[current_level][LAYER_CARGO_ID][next_cargo_y][next_cargo_x] =
+						STAGES[game.current_level][LAYER_CARGO_ID][next_cargo_y][next_cargo_x] =
 							TILE_CARGO_ID // 新しい位置に荷物を配置
 
 						// 荷物が動いたのでクリアチェックを行う
-						if check_stage_clear(current_level) {
-							fmt.printf("STAGE (LEVEL %d) CLEARED!\n", current_level)
+						if check_stage_clear(game.current_level) {
+							fmt.printf("STAGE (LEVEL %d) CLEARED!\n", game.current_level)
 							// 全ステージ数を仮に MAX_LEVELS とします（例: 3ステージなら 3）
 							// 次のステージがあるか確認
-							if current_level + 1 < MAX_LEVELS {
-								current_level += 1
+							if game.current_level + 1 < MAX_LEVELS {
+								game.current_level += 1
 
 								// 新しいステージのプレイヤー初期位置にリセット
-								start_grid := PLAYER_START_GRID[current_level]
-								p_grid_x = int(start_grid.x)
-								p_grid_y = int(start_grid.y)
-								// fmt.println(p_grid_x, p_grid_y)
+								start_grid := PLAYER_START_GRID[game.current_level]
+								game.player_grid_x = int(start_grid.x)
+								game.player_grid_y = int(start_grid.y)
+								// fmt.println(player_grid_x, player_grid_y)
 
-								offset_x, offset_y := get_stage_offset(current_level)
+								offset_x, offset_y := get_stage_offset(game.current_level)
 								// fmt.println(offset_x, offset_y)
-								player_pos = rl.Vector2 {
-									f32(p_grid_x * TILE_SIZE) + offset_x,
-									f32(p_grid_y * TILE_SIZE) + offset_y,
+								game.player_pos = rl.Vector2 {
+									f32(game.player_grid_x * TILE_SIZE) + offset_x,
+									f32(game.player_grid_y * TILE_SIZE) + offset_y,
 								}
-								// fmt.println(player_pos.x, player_pos.y)
-								player_dir_row = PLAYER_DOWN
-								// Debug
-								move_dir = {0, 0}
+								game.player_dir_row = PLAYER_DOWN
+								game.move_dir = {0, 0}
 							} else {
 								// 全ステージクリア時の処理（フラグを立ててお祝い画面を出すなど）
 								fmt.println("ALL STAGES CLEARED!")
@@ -353,11 +390,11 @@ main :: proc() {
 
 					}
 
-					p_grid_x += int(move_dir.x)
-					p_grid_y += int(move_dir.y)
-					is_moving = false
-					is_pushing = false // 荷物移動フラグをリセット
-					move_dir = {0, 0}
+					game.player_grid_x += int(game.move_dir.x)
+					game.player_grid_y += int(game.move_dir.y)
+					game.is_moving = false
+					game.is_pushing = false // 荷物移動フラグをリセット
+					game.move_dir = {0, 0}
 				}
 			}
 		}
@@ -365,9 +402,8 @@ main :: proc() {
 		// Render pass
 		rl.BeginDrawing()
 		rl.ClearBackground({30, 30, 45, 255})
-		fmt.println(p_grid_x, p_grid_y)
 
-		if current_state == .Stage_Select {
+		if game.current_state == .Stage_Select {
 			total_menu := 0
 			x_pos := 150
 			y_pos := 200
@@ -395,7 +431,7 @@ main :: proc() {
 				y_pos := i32(menu_start_y + (row * (item_height + spacing_y)))
 
 				// --- あとはこの x_pos, y_pos を使って枠線や文字を描画するだけ ---
-				is_selected := (i == selected_stage)
+				is_selected := (i == game.selected_stage)
 				color := is_selected ? rl.LIME : rl.DARKGRAY
 
 				// 選択中の赤い枠線（画像のようなデザイン）
@@ -436,34 +472,34 @@ main :: proc() {
 			info_y := i32(WINDOW_HEIGHT - 100)
 			rl.DrawText(cstring(INFO_TEXT), info_x, info_y, INFO_FONT_SIZE, rl.GRAY)
 
-		} else if current_state == .Gameplay {
+		} else if game.current_state == .Gameplay {
 			// 3. ステージを描画してから、その上にプレイヤーを描画する
 			show_stage(
-				block_tilemap,
-				current_level,
-				is_pushing ? cargo_grid_x : -1,
-				is_pushing ? cargo_grid_y : -1,
+				game.block_tilemap,
+				game.current_level,
+				game.is_pushing ? game.cargo_grid_x : -1,
+				game.is_pushing ? game.cargo_grid_y : -1,
 			)
 
 			// 4. 移動中の荷物があれば、アニメーション中の座標で個別に描画
-			if is_pushing {
+			if game.is_pushing {
 				cargo_src := rl.Rectangle {
 					f32(TILE_CARGO_ID * TILE_SIZE),
 					0,
 					f32(TILE_SIZE),
 					f32(TILE_SIZE),
 				}
-				rl.DrawTextureRec(block_tilemap, cargo_src, cargo_render_pos, rl.WHITE)
+				rl.DrawTextureRec(game.block_tilemap, cargo_src, game.cargo_render_pos, rl.WHITE)
 			}
 
 			// 5. スプライトシートから切り出すY座標を「player_dir_row * TILE_SIZE」で計算
 			source_rec := rl.Rectangle {
-				x      = f32(current_frame * TILE_SIZE),
-				y      = f32(player_dir_row * TILE_SIZE), // 向きに合わせた行を切り出す
+				x      = f32(game.current_frame * TILE_SIZE),
+				y      = f32(game.player_dir_row * TILE_SIZE), // 向きに合わせた行を切り出す
 				width  = f32(TILE_SIZE),
 				height = f32(TILE_SIZE),
 			}
-			rl.DrawTextureRec(player_tilemap, source_rec, player_pos, rl.WHITE)
+			rl.DrawTextureRec(game.player_tilemap, source_rec, game.player_pos, rl.WHITE)
 		}
 
 		rl.EndDrawing()
