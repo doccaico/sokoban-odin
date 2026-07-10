@@ -105,13 +105,13 @@ game_init :: proc() -> Game {
 // }
 
 // すべてのゴールの上に荷物があるかチェックする
-check_stage_clear :: proc(level: int) -> bool {
-	for i := 0; i < int(STAGE_SIZES[level].y); i += 1 {
-		for j := 0; j < int(STAGE_SIZES[level].x); j += 1 {
+check_stage_clear :: proc(game: Game) -> bool {
+	for i := 0; i < int(STAGE_SIZES[game.current_level].y); i += 1 {
+		for j := 0; j < int(STAGE_SIZES[game.current_level].x); j += 1 {
 			// もしそのマスが「ゴール」なのに
-			if STAGES[level][LAYER_GOAL_ID][i][j] == TILE_GOAL_ID {
+			if STAGES[game.current_level][LAYER_GOAL_ID][i][j] == TILE_GOAL_ID {
 				// 「荷物（レイヤー2が3）」が乗っていなければ、まだクリアではない
-				if STAGES[level][LAYER_CARGO_ID][i][j] != TILE_CARGO_ID {
+				if STAGES[game.current_level][LAYER_CARGO_ID][i][j] != TILE_CARGO_ID {
 					return false
 				}
 			}
@@ -361,7 +361,7 @@ main :: proc() {
 							TILE_CARGO_ID // 新しい位置に荷物を配置
 
 						// 荷物が動いたのでクリアチェックを行う
-						if check_stage_clear(game.current_level) {
+						if check_stage_clear(game) {
 							fmt.printf("STAGE (LEVEL %d) CLEARED!\n", game.current_level)
 							// 全ステージ数を仮に MAX_LEVELS とします（例: 3ステージなら 3）
 							// 次のステージがあるか確認
