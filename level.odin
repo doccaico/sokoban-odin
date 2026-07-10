@@ -15,10 +15,10 @@ TILE_DARK_CARGO_ID :: 4
 TILE_GOAL_ID :: 5
 
 // STAGE_SIZES := []rl.Vector2{{8, 8}, {7, 7}}
-STAGE_SIZES := []rl.Vector2{{7, 7}, {8, 8}}
+STAGE_SIZES := [?]rl.Vector2{{7, 7}, {8, 8}}
 
 // PLAYER_START_GRID := []rl.Vector2{{1, 3}, {3, 3}}
-PLAYER_START_GRID := []rl.Vector2{{3, 3}, {1, 3}}
+PLAYER_START_GRID := [?]rl.Vector2{{3, 3}, {1, 3}}
 
 MAX_LEVELS :: 17
 
