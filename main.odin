@@ -58,7 +58,6 @@ Game_State :: enum {
 }
 
 game_init :: proc() -> Game {
-
 	game := Game {
 		current_level    = 0,
 		current_state    = .Stage_Select,
@@ -73,13 +72,15 @@ game_init :: proc() -> Game {
 		cargo_render_pos = rl.Vector2{0, 0},
 		current_frame    = 0,
 		anim_timer       = 0,
+		block_tilemap    = rl.LoadTexture("assets/block.png"),
+		player_tilemap   = rl.LoadTexture("assets/player.png"),
 	}
 
 	start_grid := PLAYER_START_GRID[game.current_level]
 	game.player_grid_x = int(start_grid.x)
 	game.player_grid_y = int(start_grid.y)
 
-	// ピクセル座標に変換し、マップのオフセットを足す（これでステージのマスと完璧に重なる）
+	// ピクセル座標に変換し、マップのオフセットを足す(これでステージのマスと完璧に重なる)
 	offset_x, offset_y := get_stage_offset(game.current_level)
 	game.player_pos = rl.Vector2 {
 		f32(game.player_grid_x * TILE_SIZE) + offset_x,
@@ -89,40 +90,42 @@ game_init :: proc() -> Game {
 	return game
 }
 
-// respawn_player :: proc(level: int, player_dir_row: int, move_dir: rl.Vector2) {
-// 	start_grid := PLAYER_START_GRID[level]
-// 	player_grid_x = int(start_grid.x)
-// 	player_grid_y = int(start_grid.y)
-//
-// 	offset_x, offset_y := get_stage_offset(current_level)
-// 	player_pos = rl.Vector2 {
-// 		f32(player_grid_x * TILE_SIZE) + offset_x,
-// 		f32(player_grid_y * TILE_SIZE) + offset_y,
-// 	}
-//
-// 	player_dir_row = PLAYER_DOWN
-// 	move_dir = {0, 0}
-// }
+game_deinit :: proc(game: Game) {
+	rl.UnloadTexture(game.block_tilemap)
+	rl.UnloadTexture(game.player_tilemap)
+}
+
+prepare_next_stage :: proc(game: ^Game) {
+	start_grid := PLAYER_START_GRID[game.current_level]
+	game.player_grid_x = int(start_grid.x)
+	game.player_grid_y = int(start_grid.y)
+
+	offset_x, offset_y := get_stage_offset(game.current_level)
+	game.player_pos = rl.Vector2 {
+		f32(game.player_grid_x * TILE_SIZE) + offset_x,
+		f32(game.player_grid_y * TILE_SIZE) + offset_y,
+	}
+
+	game.player_dir_row = PLAYER_DOWN
+	game.move_dir = {0, 0}
+}
 
 // すべてのゴールの上に荷物があるかチェックする
 check_stage_clear :: proc(game: Game) -> bool {
 	for i := 0; i < int(STAGE_SIZES[game.current_level].y); i += 1 {
 		for j := 0; j < int(STAGE_SIZES[game.current_level].x); j += 1 {
-			// もしそのマスが「ゴール」なのに
 			if STAGES[game.current_level][LAYER_GOAL_ID][i][j] == TILE_GOAL_ID {
-				// 「荷物（レイヤー2が3）」が乗っていなければ、まだクリアではない
 				if STAGES[game.current_level][LAYER_CARGO_ID][i][j] != TILE_CARGO_ID {
 					return false
 				}
 			}
 		}
 	}
-	// すべてのゴールの上に荷物があればクリア
 	return true
 }
 
-show_stage :: proc(tilemap: rl.Texture2D, level: int, skip_cargo_x: int, skip_cargo_y: int) {
-	for layer, i in STAGES[level] {
+show_stage :: proc(game: Game, skip_cargo_x: int, skip_cargo_y: int) {
+	for layer, i in STAGES[game.current_level] {
 		for row, j in layer {
 			for val, k in row {
 				// 現在プレイヤーが押している最中の荷物は、ここでの描画をスキップする
@@ -130,10 +133,10 @@ show_stage :: proc(tilemap: rl.Texture2D, level: int, skip_cargo_x: int, skip_ca
 
 				if val != TILE_NONE_ID {
 					tile_id := val
-					// 同じマスの「ゴール（レイヤー3）」に 5 が入っているかチェックする
-					if i == LAYER_CARGO_ID && val == TILE_CARGO_ID {
-						if STAGES[level][LAYER_GOAL_ID][j][k] == TILE_GOAL_ID {
-							tile_id = TILE_DARK_CARGO_ID // 暗い色の荷物のタイルID（画像に合わせて適宜変更してください）
+					if i == LAYER_CARGO_ID && tile_id == TILE_CARGO_ID {
+						if STAGES[game.current_level][LAYER_GOAL_ID][j][k] == TILE_GOAL_ID {
+							// 暗い色の荷物のタイル
+							tile_id = TILE_DARK_CARGO_ID
 						}
 					}
 
@@ -143,9 +146,9 @@ show_stage :: proc(tilemap: rl.Texture2D, level: int, skip_cargo_x: int, skip_ca
 						width  = f32(TILE_SIZE),
 						height = f32(TILE_SIZE),
 					}
-					offset_x, offset_y := get_stage_offset(level)
+					offset_x, offset_y := get_stage_offset(game.current_level)
 					pos := rl.Vector2{f32(k * TILE_SIZE) + offset_x, f32(j * TILE_SIZE) + offset_y}
-					rl.DrawTextureRec(tilemap, source_rec, pos, rl.WHITE)
+					rl.DrawTextureRec(game.block_tilemap, source_rec, pos, rl.WHITE)
 				}
 			}
 		}
@@ -158,22 +161,17 @@ main :: proc() {
 	rl.SetTargetFPS(60)
 
 	game := game_init()
-
-	game.block_tilemap = rl.LoadTexture("assets/block.png")
-	defer rl.UnloadTexture(game.block_tilemap)
-	game.player_tilemap = rl.LoadTexture("assets/player.png")
-	defer rl.UnloadTexture(game.player_tilemap)
-
+	defer game_deinit(game)
 
 	for !rl.WindowShouldClose() {
 
 		if game.current_state == .Stage_Select {
-			// 総行数を計算（5ステージで2列なら 3行 になる）
+			// 総行数を計算(5ステージで2列なら 3行 になる)
 			total_rows := (MAX_LEVELS + MENU_COLS - 1) / MENU_COLS
 
 			// --- 右移動 ---
 			if rl.IsKeyPressed(.RIGHT) {
-				// 現在の行（0行目、1行目...）を特定
+				// 現在の行(0行目、1行目...)を特定
 				current_row := game.selected_stage / MENU_COLS
 
 				// 同一行内での次のインデックス
@@ -181,7 +179,7 @@ main :: proc() {
 
 				// 次のインデックスが「次の行」に行く、または「最大ステージ数」を超える場合
 				if (next_in_row / MENU_COLS != current_row) || (next_in_row >= MAX_LEVELS) {
-					// 同じ行の左端（先頭）に戻す
+					// 同じ行の左端(先頭)に戻す
 					game.selected_stage = current_row * MENU_COLS
 				} else {
 					game.selected_stage = next_in_row
@@ -192,12 +190,12 @@ main :: proc() {
 			if rl.IsKeyPressed(.LEFT) {
 				current_row := game.selected_stage / MENU_COLS
 
-				// 現在すでにその行の左端（先頭）にいる場合
+				// 現在すでにその行の左端(先頭)にいる場合
 				if game.selected_stage == current_row * MENU_COLS {
 					// 同じ行の右端にループさせる
 					right_end_in_row := (current_row * MENU_COLS) + (MENU_COLS - 1)
 
-					// もし右端のステージデータが存在しない場合（奇数総数で05を選択中の06など）は、存在する最後のステージにする
+					// もし右端のステージデータが存在しない場合(奇数総数で05を選択中の06など)は、存在する最後のステージにする
 					if right_end_in_row >= MAX_LEVELS {
 						game.selected_stage = MAX_LEVELS - 1
 					} else {
@@ -215,7 +213,7 @@ main :: proc() {
 
 				// 下に進むと最大数を超える、または完全に画面外に行く場合
 				if next_in_col >= MAX_LEVELS {
-					// 同じ列の最上段（0行目）に戻す
+					// 同じ列の最上段(0行目)に戻す
 					game.selected_stage = current_col
 				} else {
 					game.selected_stage = next_in_col
@@ -226,14 +224,14 @@ main :: proc() {
 			if rl.IsKeyPressed(.UP) {
 				current_col := game.selected_stage % MENU_COLS
 
-				// すでに最上段（0行目）にいる場合
+				// すでに最上段(0行目)にいる場合
 				if game.selected_stage - MENU_COLS < 0 {
 					// 同じ列の「最下段の行」を計算
 					target_idx := current_col + ((total_rows - 1) * MENU_COLS)
 
-					// 計算した最下段の要素が、最大ステージ数を超えて存在しない場合（例: 06番など）
+					// 計算した最下段の要素が、最大ステージ数を超えて存在しない場合(例: 06番など)
 					if target_idx >= MAX_LEVELS {
-						// ひとつ上の行の同じ列（例: 04番）に落とし込む
+						// ひとつ上の行の同じ列(例: 04番)に落とし込む
 						game.selected_stage = target_idx - MENU_COLS
 					} else {
 						game.selected_stage = target_idx
@@ -247,22 +245,7 @@ main :: proc() {
 			if rl.IsKeyPressed(.ENTER) || rl.IsKeyPressed(.SPACE) {
 				game.current_state = .Gameplay
 				game.current_level = game.selected_stage
-				// respawn_player(current_level, &player_dir_row, &move_dir)
-
-				start_grid := PLAYER_START_GRID[game.current_level]
-				game.player_grid_x = int(start_grid.x)
-				game.player_grid_y = int(start_grid.y)
-
-				offset_x, offset_y := get_stage_offset(game.current_level)
-				game.player_pos = rl.Vector2 {
-					f32(game.player_grid_x * TILE_SIZE) + offset_x,
-					f32(game.player_grid_y * TILE_SIZE) + offset_y,
-				}
-
-				game.player_dir_row = PLAYER_DOWN
-				game.move_dir = {0, 0}
-
-
+				prepare_next_stage(&game)
 			}
 		} else if game.current_state == .Gameplay {
 			if !game.is_moving {
@@ -285,14 +268,14 @@ main :: proc() {
 					next_y := game.player_grid_y + int(game.move_dir.y)
 					fmt.println(next_x, next_y)
 
-					// レイヤー1（壁）のデータが 1（壁ID）でないかチェック
+					// レイヤー1(壁)のデータが 1(壁ID)でないかチェック
 					// 条件分岐の整理：壁 -> 荷物 -> 床 の順番にきれいに流します
 					if STAGES[game.current_level][LAYER_WALL_ID][next_y][next_x] == TILE_WALL_ID {
 						// 進行先に壁がある場合
 						game.move_dir = {0, 0}
 					} else if STAGES[game.current_level][LAYER_CARGO_ID][next_y][next_x] ==
 					   TILE_CARGO_ID {
-						// 進行先に荷物（ID: 3）がある場合
+						// 進行先に荷物(ID: 3)がある場合
 						cargo_next_x := next_x + int(game.move_dir.x)
 						cargo_next_y := next_y + int(game.move_dir.y)
 
@@ -318,7 +301,7 @@ main :: proc() {
 							game.move_dir = {0, 0}
 						}
 					} else {
-						// 進行先が何もない空間（床）の場合
+						// 進行先が何もない空間(床)の場合
 						game.is_moving = true
 						game.is_pushing = false
 						game.moved_pixels = 0
@@ -331,7 +314,7 @@ main :: proc() {
 				}
 			}
 
-			// 2. 移動中の処理（毎フレーム4ピクセルずつ完全に等速移動）
+			// 2. 移動中の処理(毎フレーム4ピクセルずつ完全に等速移動)
 			if game.is_moving {
 				game.player_pos += game.move_dir * 4
 
@@ -363,27 +346,12 @@ main :: proc() {
 						// 荷物が動いたのでクリアチェックを行う
 						if check_stage_clear(game) {
 							fmt.printf("STAGE (LEVEL %d) CLEARED!\n", game.current_level)
-							// 全ステージ数を仮に MAX_LEVELS とします（例: 3ステージなら 3）
 							// 次のステージがあるか確認
 							if game.current_level + 1 < MAX_LEVELS {
 								game.current_level += 1
-
-								// 新しいステージのプレイヤー初期位置にリセット
-								start_grid := PLAYER_START_GRID[game.current_level]
-								game.player_grid_x = int(start_grid.x)
-								game.player_grid_y = int(start_grid.y)
-								// fmt.println(player_grid_x, player_grid_y)
-
-								offset_x, offset_y := get_stage_offset(game.current_level)
-								// fmt.println(offset_x, offset_y)
-								game.player_pos = rl.Vector2 {
-									f32(game.player_grid_x * TILE_SIZE) + offset_x,
-									f32(game.player_grid_y * TILE_SIZE) + offset_y,
-								}
-								game.player_dir_row = PLAYER_DOWN
-								game.move_dir = {0, 0}
+								prepare_next_stage(&game)
 							} else {
-								// 全ステージクリア時の処理（フラグを立ててお祝い画面を出すなど）
+								// 全ステージクリア時の処理(フラグを立ててお祝い画面を出すなど)
 								fmt.println("ALL STAGES CLEARED!")
 							}
 						}
@@ -434,7 +402,7 @@ main :: proc() {
 				is_selected := (i == game.selected_stage)
 				color := is_selected ? rl.LIME : rl.DARKGRAY
 
-				// 選択中の赤い枠線（画像のようなデザイン）
+				// 選択中の赤い枠線(画像のようなデザイン)
 				if is_selected {
 					rl.DrawRectangleLinesEx(
 						rl.Rectangle{f32(x_pos), f32(y_pos), item_width, item_height},
@@ -475,8 +443,7 @@ main :: proc() {
 		} else if game.current_state == .Gameplay {
 			// 3. ステージを描画してから、その上にプレイヤーを描画する
 			show_stage(
-				game.block_tilemap,
-				game.current_level,
+				game,
 				game.is_pushing ? game.cargo_grid_x : -1,
 				game.is_pushing ? game.cargo_grid_y : -1,
 			)
