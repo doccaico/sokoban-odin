@@ -1,0 +1,6 @@
+package main
+
+PLAYER_DOWN :: 0
+PLAYER_LEFT :: 1
+PLAYER_UP :: 2
+PLAYER_RIGHT :: 3
