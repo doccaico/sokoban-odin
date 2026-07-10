@@ -14,6 +14,7 @@ PLAYER_RIGHT :: 3
 
 TILE_SIZE: int : 64
 MENU_COLS: int : 5
+BTN_SIZE: int : 96
 
 Game :: struct {
 	// 現在のレベル
@@ -48,10 +49,18 @@ Game :: struct {
 	// 現在のフレームとアニメーションのタイマー
 	current_frame:    int,
 	anim_timer:       int,
+	btn_up_bounds:    rl.Rectangle,
+	btn_down_bounds:  rl.Rectangle,
+	btn_left_bounds:  rl.Rectangle,
+	btn_right_bounds: rl.Rectangle,
 
 	// リソース
 	block_tilemap:    rl.Texture2D,
 	player_tilemap:   rl.Texture2D,
+	up_texture:       rl.Texture2D,
+	down_texture:     rl.Texture2D,
+	left_texture:     rl.Texture2D,
+	right_texture:    rl.Texture2D,
 }
 
 
@@ -61,7 +70,40 @@ Game_State :: enum {
 	Clear,
 }
 
+Button :: enum {
+	Up,
+	Down,
+	Left,
+	Right,
+}
+
 game_init :: proc() -> Game {
+	TWEAK_Y: f32 : 50
+	btn_up_bounds := rl.Rectangle {
+		x      = f32((WINDOW_WIDTH - BTN_SIZE * 3) / 2 + BTN_SIZE),
+		y      = f32(WINDOW_HEIGHT - BTN_SIZE * 3) - TWEAK_Y,
+		width  = f32(BTN_SIZE),
+		height = f32(BTN_SIZE),
+	}
+	btn_down_bounds := rl.Rectangle {
+		x      = f32((WINDOW_WIDTH - BTN_SIZE * 3) / 2 + BTN_SIZE),
+		y      = f32(WINDOW_HEIGHT - BTN_SIZE * 1) - TWEAK_Y,
+		width  = f32(BTN_SIZE),
+		height = f32(BTN_SIZE),
+	}
+	btn_left_bounds := rl.Rectangle {
+		x      = f32((WINDOW_WIDTH - BTN_SIZE * 3) / 2),
+		y      = f32(WINDOW_HEIGHT - BTN_SIZE * 2) - TWEAK_Y,
+		width  = f32(BTN_SIZE),
+		height = f32(BTN_SIZE),
+	}
+	btn_right_bounds := rl.Rectangle {
+		x      = f32((WINDOW_WIDTH - BTN_SIZE * 3) / 2 + BTN_SIZE * 2),
+		y      = f32(WINDOW_HEIGHT - BTN_SIZE * 2) - TWEAK_Y,
+		width  = f32(BTN_SIZE),
+		height = f32(BTN_SIZE),
+	}
+
 	game := Game {
 		current_level    = 0,
 		current_state    = .Stage_Select,
@@ -76,8 +118,16 @@ game_init :: proc() -> Game {
 		cargo_render_pos = rl.Vector2{0, 0},
 		current_frame    = 0,
 		anim_timer       = 0,
+		btn_up_bounds    = btn_up_bounds,
+		btn_down_bounds  = btn_down_bounds,
+		btn_left_bounds  = btn_left_bounds,
+		btn_right_bounds = btn_right_bounds,
 		block_tilemap    = rl.LoadTexture("assets/block.png"),
 		player_tilemap   = rl.LoadTexture("assets/player.png"),
+		up_texture       = rl.LoadTexture("assets/button/up.png"),
+		down_texture     = rl.LoadTexture("assets/button/down.png"),
+		left_texture     = rl.LoadTexture("assets/button/left.png"),
+		right_texture    = rl.LoadTexture("assets/button/right.png"),
 	}
 
 	start_grid := PLAYER_START_GRID[game.current_level]
@@ -91,12 +141,17 @@ game_init :: proc() -> Game {
 		f32(game.player_grid_y * TILE_SIZE) + offset_y,
 	}
 
+
 	return game
 }
 
 game_deinit :: proc(game: Game) {
 	rl.UnloadTexture(game.block_tilemap)
 	rl.UnloadTexture(game.player_tilemap)
+	rl.UnloadTexture(game.up_texture)
+	rl.UnloadTexture(game.down_texture)
+	rl.UnloadTexture(game.left_texture)
+	rl.UnloadTexture(game.right_texture)
 }
 
 prepare_next_stage :: proc(game: ^Game) {
@@ -115,7 +170,7 @@ prepare_next_stage :: proc(game: ^Game) {
 }
 
 // すべてのゴールの上に荷物があるかチェックする
-check_stage_clear :: proc(game: Game) -> bool {
+check_stage_clear :: proc(game: ^Game) -> bool {
 	for i := 0; i < int(STAGE_SIZES[game.current_level].y); i += 1 {
 		for j := 0; j < int(STAGE_SIZES[game.current_level].x); j += 1 {
 			if STAGES[game.current_level][LAYER_GOAL_ID][i][j] == TILE_GOAL_ID {
@@ -165,7 +220,7 @@ update_stage_select :: proc(game: ^Game) {
 	total_rows := (MAX_LEVELS + MENU_COLS - 1) / MENU_COLS
 
 	// --- 右移動 ---
-	if rl.IsKeyPressed(.RIGHT) {
+	if rl.IsKeyPressed(.RIGHT) || is_btn_pressed(game, .Right) {
 		// 現在の行(0行目、1行目...)を特定
 		current_row := game.selected_stage / MENU_COLS
 
@@ -182,7 +237,7 @@ update_stage_select :: proc(game: ^Game) {
 	}
 
 	// --- 左移動 ---
-	if rl.IsKeyPressed(.LEFT) {
+	if rl.IsKeyPressed(.LEFT) || is_btn_pressed(game, .Left) {
 		current_row := game.selected_stage / MENU_COLS
 
 		// 現在すでにその行の左端(先頭)にいる場合
@@ -203,7 +258,7 @@ update_stage_select :: proc(game: ^Game) {
 	}
 
 	// --- 下移動 ---
-	if rl.IsKeyPressed(.DOWN) {
+	if rl.IsKeyPressed(.DOWN) || is_btn_pressed(game, .Down) {
 		current_col := game.selected_stage % MENU_COLS
 		next_in_col := game.selected_stage + MENU_COLS
 
@@ -217,7 +272,7 @@ update_stage_select :: proc(game: ^Game) {
 	}
 
 	// --- 上移動 ---
-	if rl.IsKeyPressed(.UP) {
+	if rl.IsKeyPressed(.UP) || is_btn_pressed(game, .Up) {
 		current_col := game.selected_stage % MENU_COLS
 
 		// すでに最上段(0行目)にいる場合
@@ -243,6 +298,7 @@ update_stage_select :: proc(game: ^Game) {
 		game.current_level = game.selected_stage
 		prepare_next_stage(game)
 	}
+
 }
 
 update_gameplay :: proc(game: ^Game) {
@@ -337,7 +393,7 @@ update_gameplay :: proc(game: ^Game) {
 					TILE_CARGO_ID // 新しい位置に荷物を配置
 
 				// 荷物が動いたのでクリアチェックを行う
-				if check_stage_clear(game^) {
+				if check_stage_clear(game) {
 					fmt.printf("STAGE (LEVEL %d) CLEARED!\n", game.current_level)
 					// 次のステージがあるか確認
 					if game.current_level + 1 < MAX_LEVELS {
@@ -418,8 +474,38 @@ draw_stage_select :: proc(game: Game) {
 	INFO_FONT_SIZE: i32 : 20
 	info_width := rl.MeasureText(fmt.ctprintf("%s", INFO_TEXT), INFO_FONT_SIZE)
 	info_x := (i32(WINDOW_WIDTH) - info_width) / 2
-	info_y := i32(WINDOW_HEIGHT - 100)
+	info_y := i32(WINDOW_HEIGHT - 35)
 	rl.DrawText(cstring(INFO_TEXT), info_x, info_y, INFO_FONT_SIZE, rl.GRAY)
+
+	// BUTTONS
+	// UP
+	rl.DrawTextureRec(
+		game.up_texture,
+		rl.Rectangle{0, 0, f32(BTN_SIZE), f32(BTN_SIZE)},
+		rl.Vector2{game.btn_up_bounds.x, game.btn_up_bounds.y},
+		rl.WHITE,
+	)
+	// DOWN
+	rl.DrawTextureRec(
+		game.down_texture,
+		rl.Rectangle{0, 0, f32(BTN_SIZE), f32(BTN_SIZE)},
+		rl.Vector2{game.btn_down_bounds.x, game.btn_down_bounds.y},
+		rl.WHITE,
+	)
+	// LEFT
+	rl.DrawTextureRec(
+		game.left_texture,
+		rl.Rectangle{0, 0, f32(BTN_SIZE), f32(BTN_SIZE)},
+		rl.Vector2{game.btn_left_bounds.x, game.btn_left_bounds.y},
+		rl.WHITE,
+	)
+	// RIGHT
+	rl.DrawTextureRec(
+		game.right_texture,
+		rl.Rectangle{0, 0, f32(BTN_SIZE), f32(BTN_SIZE)},
+		rl.Vector2{game.btn_right_bounds.x, game.btn_right_bounds.y},
+		rl.WHITE,
+	)
 }
 
 draw_gameplay :: proc(game: Game) {
@@ -449,6 +535,27 @@ draw_gameplay :: proc(game: Game) {
 		height = f32(TILE_SIZE),
 	}
 	rl.DrawTextureRec(game.player_tilemap, source_rec, game.player_pos, rl.WHITE)
+}
+
+is_btn_pressed :: proc(game: ^Game, btn: Button) -> bool {
+	if rl.IsMouseButtonPressed(rl.MouseButton.LEFT) {
+		bounds: rl.Rectangle
+		switch btn {
+		case .Up:
+			bounds = game.btn_up_bounds
+		case .Down:
+			bounds = game.btn_down_bounds
+		case .Left:
+			bounds = game.btn_left_bounds
+		case .Right:
+			bounds = game.btn_right_bounds
+		}
+		mouse_pos := rl.GetMousePosition()
+		if rl.CheckCollisionPointRec(mouse_pos, bounds) {
+			return true
+		}
+	}
+	return false
 }
 
 main :: proc() {
