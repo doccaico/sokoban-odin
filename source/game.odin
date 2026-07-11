@@ -60,6 +60,7 @@ Game :: struct {
 	btn_enter_bounds: rl.Rectangle,
 	btn_retry_bounds: rl.Rectangle,
 	btn_back_bounds:  rl.Rectangle,
+
 	// リソース
 	block_tilemap:    rl.Texture2D,
 	player_tilemap:   rl.Texture2D,
@@ -74,7 +75,6 @@ Game :: struct {
 Game_State :: enum {
 	Stage_Select,
 	Gameplay,
-	Clear,
 }
 
 Button :: enum {
@@ -462,14 +462,13 @@ update_gameplay :: proc(game: ^Game) {
 
 				// 荷物が動いたのでクリアチェックを行う
 				if check_stage_clear(game) {
-					fmt.printf("STAGE (LEVEL %d) CLEARED!\n", game.current_level)
 					// 次のステージがあるか確認
 					if game.current_level + 1 < MAX_LEVELS {
 						game.current_level += 1
 						make_stage(game)
 					} else {
 						// 全ステージクリア時の処理(フラグを立ててお祝い画面を出すなど)
-						fmt.println("ALL STAGES CLEARED!")
+						// fmt.println("ALL STAGES CLEARED!")
 					}
 				}
 
@@ -608,13 +607,16 @@ draw_ui :: proc(game: Game) {
 		rl.Vector2{game.btn_right_bounds.x, game.btn_right_bounds.y},
 		rl.WHITE,
 	)
-	// ENTER
-	rl.DrawTextureRec(
-		game.enter_texture,
-		rl.Rectangle{0, 0, f32(BTN_SIZE), f32(BTN_SIZE)},
-		rl.Vector2{game.btn_enter_bounds.x, game.btn_enter_bounds.y},
-		rl.WHITE,
-	)
+
+	if game.current_state == .Stage_Select {
+		// ENTER
+		rl.DrawTextureRec(
+			game.enter_texture,
+			rl.Rectangle{0, 0, f32(BTN_SIZE), f32(BTN_SIZE)},
+			rl.Vector2{game.btn_enter_bounds.x, game.btn_enter_bounds.y},
+			rl.WHITE,
+		)
+	}
 
 	if game.current_state == .Gameplay {
 		// RETRY
@@ -635,6 +637,10 @@ draw_ui :: proc(game: Game) {
 			20,
 			rl.GRAY,
 		)
+		// LEVEL
+		level_str := fmt.ctprintf("-- LEVEL %d --", game.current_level + 1)
+		level_width := rl.MeasureText(level_str, 24)
+		rl.DrawText(level_str, (i32(WINDOW_WIDTH) - level_width) / 2, 16, 24, rl.GRAY)
 	}
 }
 
@@ -694,7 +700,6 @@ is_btn_down :: proc(game: ^Game, btn: Button) -> bool {
 
 run: bool
 game: Game
-
 
 init :: proc() {
 	run = true
