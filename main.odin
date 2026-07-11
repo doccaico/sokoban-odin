@@ -54,6 +54,7 @@ Game :: struct {
 	btn_left_bounds:  rl.Rectangle,
 	btn_right_bounds: rl.Rectangle,
 	btn_enter_bounds: rl.Rectangle,
+	btn_retry_bounds: rl.Rectangle,
 
 	// リソース
 	block_tilemap:    rl.Texture2D,
@@ -78,6 +79,7 @@ Button :: enum {
 	Left,
 	Right,
 	Enter,
+	Retry,
 }
 
 game_init :: proc() -> Game {
@@ -112,6 +114,12 @@ game_init :: proc() -> Game {
 		width  = f32(BTN_SIZE),
 		height = f32(BTN_SIZE),
 	}
+	btn_retry_bounds := rl.Rectangle {
+		x      = f32(WINDOW_WIDTH - 100),
+		y      = f32(WINDOW_HEIGHT - 200),
+		width  = f32(100),
+		height = f32(25),
+	}
 
 	game := Game {
 		current_level    = 0,
@@ -132,6 +140,7 @@ game_init :: proc() -> Game {
 		btn_left_bounds  = btn_left_bounds,
 		btn_right_bounds = btn_right_bounds,
 		btn_enter_bounds = btn_enter_bounds,
+		btn_retry_bounds = btn_retry_bounds,
 		block_tilemap    = rl.LoadTexture("assets/block.png"),
 		player_tilemap   = rl.LoadTexture("assets/player.png"),
 		up_texture       = rl.LoadTexture("assets/button/up.png"),
@@ -327,6 +336,8 @@ update_gameplay :: proc(game: ^Game) {
 		} else if rl.IsKeyDown(.DOWN) || is_btn_down(game, .Down) {
 			game.move_dir = {0, 1}
 			game.player_dir_row = PLAYER_DOWN
+		} else if rl.IsKeyDown(.R) || is_btn_down(game, .Retry) {
+			fmt.println("OSU")
 		}
 
 		if game.move_dir != {0, 0} {
@@ -559,6 +570,12 @@ draw_ui :: proc(game: Game) {
 		rl.Vector2{game.btn_enter_bounds.x, game.btn_enter_bounds.y},
 		rl.WHITE,
 	)
+
+	// TODO
+	if game.current_state == .Gameplay {
+
+		rl.DrawRectangleLinesEx(game.btn_retry_bounds, 2, rl.WHITE)
+	}
 }
 
 is_btn_pressed :: proc(game: ^Game, btn: Button) -> bool {
