@@ -1,6 +1,8 @@
-package main
+package game
 
 import "core:fmt"
+import "core:mem"
+import "core:slice"
 import rl "vendor:raylib"
 
 WINDOW_TITLE :: "Simple Sokoban"
@@ -17,11 +19,13 @@ MENU_COLS: int : 5
 BTN_SIZE: int : 96
 
 Game :: struct {
+	// 現在のステージ
+	current_stage:    [][][]int,
 	// 現在のレベル
 	current_level:    int,
 	// 現在の状態(State)
 	current_state:    Game_State,
-	// 選択中のステージ
+	// 選択中のステージ(Title画面)
 	selected_stage:   int,
 	// プレイヤーの初期グリッド位置(例: 3マス目、3マス目)
 	player_grid_x:    int,
@@ -161,11 +165,11 @@ game_init :: proc() -> Game {
 		f32(game.player_grid_y * TILE_SIZE) + offset_y,
 	}
 
-
 	return game
 }
 
 game_deinit :: proc(game: Game) {
+	delete_3d_slice(game.current_stage)
 	rl.UnloadTexture(game.block_tilemap)
 	rl.UnloadTexture(game.player_tilemap)
 	rl.UnloadTexture(game.up_texture)
@@ -175,7 +179,34 @@ game_deinit :: proc(game: Game) {
 	rl.UnloadTexture(game.enter_texture)
 }
 
-prepare_next_stage :: proc(game: ^Game) {
+clone_3d_slice :: proc(src: [][][]int) -> [][][]int {
+	// 最外層（1次元目）の配列を確保
+	dst := make([][][]int, len(src))
+
+	for x in 0 ..< len(src) {
+		// 2次元目の配列を確保
+		dst[x] = make([][]int, len(src[x]))
+
+		for y in 0 ..< len(src[x]) {
+			// 最内層（3次元目）をクローン
+			dst[x][y] = slice.clone(src[x][y])
+		}
+	}
+	return dst
+}
+
+delete_3d_slice :: proc(src: [][][]int) {
+	for x in src {
+		for y in x {
+			delete(y)
+		}
+		delete(x)
+	}
+	delete(src)
+}
+
+
+prepare_stage :: proc(game: ^Game) {
 	start_grid := PLAYER_START_GRID[game.current_level]
 	game.player_grid_x = int(start_grid.x)
 	game.player_grid_y = int(start_grid.y)
@@ -188,14 +219,19 @@ prepare_next_stage :: proc(game: ^Game) {
 
 	game.player_dir_row = PLAYER_DOWN
 	game.move_dir = {0, 0}
+
+	if game.current_stage != nil {
+		delete_3d_slice(game.current_stage)
+	}
+	game.current_stage = clone_3d_slice(STAGES[game.current_level])
 }
 
 // すべてのゴールの上に荷物があるかチェックする
 check_stage_clear :: proc(game: ^Game) -> bool {
 	for i := 0; i < int(STAGE_SIZES[game.current_level].y); i += 1 {
 		for j := 0; j < int(STAGE_SIZES[game.current_level].x); j += 1 {
-			if STAGES[game.current_level][LAYER_GOAL_ID][i][j] == TILE_GOAL_ID {
-				if STAGES[game.current_level][LAYER_CARGO_ID][i][j] != TILE_CARGO_ID {
+			if game.current_stage[LAYER_GOAL_ID][i][j] == TILE_GOAL_ID {
+				if game.current_stage[LAYER_CARGO_ID][i][j] != TILE_CARGO_ID {
 					return false
 				}
 			}
@@ -205,7 +241,7 @@ check_stage_clear :: proc(game: ^Game) -> bool {
 }
 
 show_stage :: proc(game: Game, skip_cargo_x: int, skip_cargo_y: int) {
-	for layer, i in STAGES[game.current_level] {
+	for layer, i in game.current_stage {
 		for row, j in layer {
 			for val, k in row {
 				// 現在プレイヤーが押している最中の荷物は、ここでの描画をスキップする
@@ -214,7 +250,7 @@ show_stage :: proc(game: Game, skip_cargo_x: int, skip_cargo_y: int) {
 				if val != TILE_NONE_ID {
 					tile_id := val
 					if i == LAYER_CARGO_ID && tile_id == TILE_CARGO_ID {
-						if STAGES[game.current_level][LAYER_GOAL_ID][j][k] == TILE_GOAL_ID {
+						if game.current_stage[LAYER_GOAL_ID][j][k] == TILE_GOAL_ID {
 							// 暗い色の荷物のタイル
 							tile_id = TILE_DARK_CARGO_ID
 						}
@@ -317,7 +353,7 @@ update_stage_select :: proc(game: ^Game) {
 	if rl.IsKeyPressed(.ENTER) || rl.IsKeyPressed(.SPACE) || is_btn_pressed(game, .Enter) {
 		game.current_state = .Gameplay
 		game.current_level = game.selected_stage
-		prepare_next_stage(game)
+		prepare_stage(game)
 	}
 
 }
@@ -336,26 +372,25 @@ update_gameplay :: proc(game: ^Game) {
 		} else if rl.IsKeyDown(.DOWN) || is_btn_down(game, .Down) {
 			game.move_dir = {0, 1}
 			game.player_dir_row = PLAYER_DOWN
-		} else if rl.IsKeyDown(.R) || is_btn_down(game, .Retry) {
-			fmt.println("OSU")
+		} else if rl.IsKeyDown(.R) || is_btn_pressed(game, .Retry) {
+			prepare_stage(game)
 		}
 
 		if game.move_dir != {0, 0} {
 			next_x := game.player_grid_x + int(game.move_dir.x)
 			next_y := game.player_grid_y + int(game.move_dir.y)
 
-			if STAGES[game.current_level][LAYER_WALL_ID][next_y][next_x] == TILE_WALL_ID {
+			if game.current_stage[LAYER_WALL_ID][next_y][next_x] == TILE_WALL_ID {
 				// 進行先に壁がある場合
 				game.move_dir = {0, 0}
-			} else if STAGES[game.current_level][LAYER_CARGO_ID][next_y][next_x] == TILE_CARGO_ID {
+			} else if game.current_stage[LAYER_CARGO_ID][next_y][next_x] == TILE_CARGO_ID {
 				// 進行先に荷物がある場合
 				cargo_next_x := next_x + int(game.move_dir.x)
 				cargo_next_y := next_y + int(game.move_dir.y)
 
 				// 荷物の先が「壁」でも「別の荷物」でもない場合のみ押せる
-				if STAGES[game.current_level][LAYER_WALL_ID][cargo_next_y][cargo_next_x] !=
-					   TILE_WALL_ID &&
-				   STAGES[game.current_level][LAYER_CARGO_ID][cargo_next_y][cargo_next_x] !=
+				if game.current_stage[LAYER_WALL_ID][cargo_next_y][cargo_next_x] != TILE_WALL_ID &&
+				   game.current_stage[LAYER_CARGO_ID][cargo_next_y][cargo_next_x] !=
 					   TILE_CARGO_ID {
 					game.is_moving = true
 					game.is_pushing = true
@@ -409,11 +444,11 @@ update_gameplay :: proc(game: ^Game) {
 			if game.is_pushing {
 				next_cargo_x := game.cargo_grid_x + int(game.move_dir.x)
 				next_cargo_y := game.cargo_grid_y + int(game.move_dir.y)
-
-				STAGES[game.current_level][LAYER_CARGO_ID][game.cargo_grid_y][game.cargo_grid_x] =
-					TILE_NONE_ID // 元の位置を空に
-				STAGES[game.current_level][LAYER_CARGO_ID][next_cargo_y][next_cargo_x] =
-					TILE_CARGO_ID // 新しい位置に荷物を配置
+				// 元の位置を空に
+				game.current_stage[LAYER_CARGO_ID][game.cargo_grid_y][game.cargo_grid_x] =
+					TILE_NONE_ID
+				// 新しい位置に荷物を配置
+				game.current_stage[LAYER_CARGO_ID][next_cargo_y][next_cargo_x] = TILE_CARGO_ID
 
 				// 荷物が動いたのでクリアチェックを行う
 				if check_stage_clear(game) {
@@ -421,7 +456,7 @@ update_gameplay :: proc(game: ^Game) {
 					// 次のステージがあるか確認
 					if game.current_level + 1 < MAX_LEVELS {
 						game.current_level += 1
-						prepare_next_stage(game)
+						prepare_stage(game)
 					} else {
 						// 全ステージクリア時の処理(フラグを立ててお祝い画面を出すなど)
 						fmt.println("ALL STAGES CLEARED!")
@@ -592,6 +627,8 @@ is_btn_pressed :: proc(game: ^Game, btn: Button) -> bool {
 			bounds = game.btn_right_bounds
 		case .Enter:
 			bounds = game.btn_enter_bounds
+		case .Retry:
+			bounds = game.btn_retry_bounds
 		}
 		mouse_pos := rl.GetMousePosition()
 		if rl.CheckCollisionPointRec(mouse_pos, bounds) {
@@ -615,6 +652,8 @@ is_btn_down :: proc(game: ^Game, btn: Button) -> bool {
 			bounds = game.btn_right_bounds
 		case .Enter:
 			bounds = game.btn_enter_bounds
+		case .Retry:
+			bounds = game.btn_retry_bounds
 		}
 		mouse_pos := rl.GetMousePosition()
 		if rl.CheckCollisionPointRec(mouse_pos, bounds) {
@@ -625,6 +664,28 @@ is_btn_down :: proc(game: ^Game, btn: Button) -> bool {
 }
 
 main :: proc() {
+	when ODIN_DEBUG {
+		track: mem.Tracking_Allocator
+		mem.tracking_allocator_init(&track, context.allocator)
+		context.allocator = mem.tracking_allocator(&track)
+
+		defer {
+			if len(track.allocation_map) > 0 {
+				fmt.eprintf("=== %v allocations not freed: ===\n", len(track.allocation_map))
+				for _, entry in track.allocation_map {
+					fmt.eprintf("- %v bytes @ %v\n", entry.size, entry.location)
+				}
+			}
+			if len(track.bad_free_array) > 0 {
+				fmt.eprintf("=== %v incorrect frees: ===\n", len(track.bad_free_array))
+				for entry in track.bad_free_array {
+					fmt.eprintf("- %p @ %v\n", entry.memory, entry.location)
+				}
+			}
+			mem.tracking_allocator_destroy(&track)
+		}
+	}
+
 	rl.InitWindow(i32(WINDOW_WIDTH), i32(WINDOW_HEIGHT), WINDOW_TITLE)
 	defer rl.CloseWindow()
 	rl.SetTargetFPS(60)
