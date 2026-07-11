@@ -5,25 +5,45 @@
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 
 	<title>Odin + Raylib on the web</title>
-	<meta name="title" content="Odin + Raylib on the web">
+	<meta name="title" content="Simple Sokoban">
 	<meta name="description" content="Make games using Odin + Raylib that work in the browser">
 	<meta name="viewport" content="width=device-width">
 
 	<style>
-		body { 
-			margin: 0px; 
-			overflow: hidden; 
-			background-color: black;
-		}
-		canvas.game_canvas { 
-			border: 0px none; 
-			background-color: black;
-			padding-left: 0;
-			padding-right: 0;
-			margin-left: auto;
-			margin-right: auto;
-			display: block;
-		}
+        /* 1. 画面全体の余白をなくし、スクロールを完全に禁止する */
+        html, body {
+          margin: 0 !important;
+          padding: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          background-color: #1a1a24; /* 背景をゲームと同じ暗い色に */
+          overflow: hidden !important;
+
+          /* 【超重要】上下左右の完全に真ん中に要素を集める設定 */
+          display: flex !important;
+          justify-content: center !important;
+          align-items: center !important;
+        }
+
+        /* 2. Canvas自体を画面の中央に固定する設定 */
+        canvas.game_canvas {
+          border: 0px none;
+          background-color: black;
+
+          /* 他のCSSに邪魔されないよう最優先で真ん中に寄せる */
+          display: block !important;
+          margin: auto !important; 
+
+          /* 縦横比（2/3）を保ったまま、画面の「縦」か「横」の狭い方に100%合わせる */
+          width: auto !important;
+          height: auto !important;
+          max-width: 100vw !important;
+          max-height: 100vh !important;
+          aspect-ratio: 2 / 3 !important;
+
+          image-rendering: pixelated; 
+        }
+
 	</style>
 </head>
 <body>
@@ -106,6 +126,14 @@
 				return document.getElementById("canvas");
 			})()
 		};
+
+        // アローキーやスペースキーによるブラウザの標準スクロールを禁止する
+        window.addEventListener('keydown', function(e) {
+          // 37:左, 38:上, 39:右, 40:下, 32:スペースキー
+          if([32, 37, 38, 39, 40].indexOf(e.keyCode) > -1) {
+            e.preventDefault();
+          }
+        }, { passive: false });
 	</script>
 
 	<!-- Emscripten injects its javascript here -->

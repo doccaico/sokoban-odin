@@ -1,7 +1,7 @@
 package game
 
+import "core:c"
 import "core:fmt"
-import "core:mem"
 import "core:slice"
 import rl "vendor:raylib"
 
@@ -59,7 +59,7 @@ Game :: struct {
 	btn_right_bounds: rl.Rectangle,
 	btn_enter_bounds: rl.Rectangle,
 	btn_retry_bounds: rl.Rectangle,
-
+	btn_back_bounds:  rl.Rectangle,
 	// リソース
 	block_tilemap:    rl.Texture2D,
 	player_tilemap:   rl.Texture2D,
@@ -84,6 +84,7 @@ Button :: enum {
 	Right,
 	Enter,
 	Retry,
+	Back,
 }
 
 game_init :: proc() -> Game {
@@ -119,10 +120,16 @@ game_init :: proc() -> Game {
 		height = f32(BTN_SIZE),
 	}
 	btn_retry_bounds := rl.Rectangle {
-		x      = f32(WINDOW_WIDTH - 100),
-		y      = f32(WINDOW_HEIGHT - 200),
+		x      = f32(WINDOW_WIDTH - 120),
+		y      = f32(WINDOW_HEIGHT - BTN_SIZE * 3) - TWEAK_Y + 4,
 		width  = f32(100),
-		height = f32(25),
+		height = f32(35),
+	}
+	btn_back_bounds := rl.Rectangle {
+		x      = f32(WINDOW_WIDTH - 120),
+		y      = f32(WINDOW_HEIGHT - BTN_SIZE * 3) - TWEAK_Y + 4 + 45,
+		width  = f32(100),
+		height = f32(35),
 	}
 
 	game := Game {
@@ -145,6 +152,7 @@ game_init :: proc() -> Game {
 		btn_right_bounds = btn_right_bounds,
 		btn_enter_bounds = btn_enter_bounds,
 		btn_retry_bounds = btn_retry_bounds,
+		btn_back_bounds  = btn_back_bounds,
 		block_tilemap    = rl.LoadTexture("assets/block.png"),
 		player_tilemap   = rl.LoadTexture("assets/player.png"),
 		up_texture       = rl.LoadTexture("assets/button/up.png"),
@@ -206,7 +214,7 @@ delete_3d_slice :: proc(src: [][][]int) {
 }
 
 
-prepare_stage :: proc(game: ^Game) {
+make_stage :: proc(game: ^Game) {
 	start_grid := PLAYER_START_GRID[game.current_level]
 	game.player_grid_x = int(start_grid.x)
 	game.player_grid_y = int(start_grid.y)
@@ -353,7 +361,7 @@ update_stage_select :: proc(game: ^Game) {
 	if rl.IsKeyPressed(.ENTER) || rl.IsKeyPressed(.SPACE) || is_btn_pressed(game, .Enter) {
 		game.current_state = .Gameplay
 		game.current_level = game.selected_stage
-		prepare_stage(game)
+		make_stage(game)
 	}
 
 }
@@ -373,7 +381,9 @@ update_gameplay :: proc(game: ^Game) {
 			game.move_dir = {0, 1}
 			game.player_dir_row = PLAYER_DOWN
 		} else if rl.IsKeyDown(.R) || is_btn_pressed(game, .Retry) {
-			prepare_stage(game)
+			make_stage(game)
+		} else if rl.IsKeyDown(.B) || is_btn_pressed(game, .Back) {
+			game.current_state = .Stage_Select
 		}
 
 		if game.move_dir != {0, 0} {
@@ -456,7 +466,7 @@ update_gameplay :: proc(game: ^Game) {
 					// 次のステージがあるか確認
 					if game.current_level + 1 < MAX_LEVELS {
 						game.current_level += 1
-						prepare_stage(game)
+						make_stage(game)
 					} else {
 						// 全ステージクリア時の処理(フラグを立ててお祝い画面を出すなど)
 						fmt.println("ALL STAGES CLEARED!")
@@ -504,7 +514,7 @@ draw_stage_select :: proc(game: Game) {
 		is_selected := (i == game.selected_stage)
 		color := is_selected ? rl.LIME : rl.DARKGRAY
 
-		// 選択中の赤い枠線(画像のようなデザイン)
+		// 選択中の赤い枠線
 		if is_selected {
 			rl.DrawRectangleLinesEx(
 				rl.Rectangle{f32(x_pos), f32(y_pos), item_width, item_height},
@@ -606,10 +616,25 @@ draw_ui :: proc(game: Game) {
 		rl.WHITE,
 	)
 
-	// TODO
 	if game.current_state == .Gameplay {
-
-		rl.DrawRectangleLinesEx(game.btn_retry_bounds, 2, rl.WHITE)
+		// RETRY
+		rl.DrawRectangleLinesEx(game.btn_retry_bounds, 2, rl.GRAY)
+		rl.DrawText(
+			"Retry",
+			i32(game.btn_retry_bounds.x) + 22,
+			i32(game.btn_retry_bounds.y) + 8,
+			20,
+			rl.GRAY,
+		)
+		// BACK
+		rl.DrawRectangleLinesEx(game.btn_back_bounds, 2, rl.GRAY)
+		rl.DrawText(
+			"Back",
+			i32(game.btn_back_bounds.x) + 22,
+			i32(game.btn_back_bounds.y) + 8,
+			20,
+			rl.GRAY,
+		)
 	}
 }
 
@@ -629,6 +654,8 @@ is_btn_pressed :: proc(game: ^Game, btn: Button) -> bool {
 			bounds = game.btn_enter_bounds
 		case .Retry:
 			bounds = game.btn_retry_bounds
+		case .Back:
+			bounds = game.btn_back_bounds
 		}
 		mouse_pos := rl.GetMousePosition()
 		if rl.CheckCollisionPointRec(mouse_pos, bounds) {
@@ -654,6 +681,8 @@ is_btn_down :: proc(game: ^Game, btn: Button) -> bool {
 			bounds = game.btn_enter_bounds
 		case .Retry:
 			bounds = game.btn_retry_bounds
+		case .Back:
+			bounds = game.btn_back_bounds
 		}
 		mouse_pos := rl.GetMousePosition()
 		if rl.CheckCollisionPointRec(mouse_pos, bounds) {
@@ -663,52 +692,59 @@ is_btn_down :: proc(game: ^Game, btn: Button) -> bool {
 	return false
 }
 
-main :: proc() {
-	when ODIN_DEBUG {
-		track: mem.Tracking_Allocator
-		mem.tracking_allocator_init(&track, context.allocator)
-		context.allocator = mem.tracking_allocator(&track)
+run: bool
+game: Game
 
-		defer {
-			if len(track.allocation_map) > 0 {
-				fmt.eprintf("=== %v allocations not freed: ===\n", len(track.allocation_map))
-				for _, entry in track.allocation_map {
-					fmt.eprintf("- %v bytes @ %v\n", entry.size, entry.location)
-				}
-			}
-			if len(track.bad_free_array) > 0 {
-				fmt.eprintf("=== %v incorrect frees: ===\n", len(track.bad_free_array))
-				for entry in track.bad_free_array {
-					fmt.eprintf("- %p @ %v\n", entry.memory, entry.location)
-				}
-			}
-			mem.tracking_allocator_destroy(&track)
-		}
+
+init :: proc() {
+	run = true
+
+	when ODIN_OS == .JS {
+		rl.SetConfigFlags({.VSYNC_HINT})
+	} else {
+		rl.SetTargetFPS(60)
 	}
-
 	rl.InitWindow(i32(WINDOW_WIDTH), i32(WINDOW_HEIGHT), WINDOW_TITLE)
-	defer rl.CloseWindow()
-	rl.SetTargetFPS(60)
+	game = game_init()
+}
 
-	game := game_init()
-	defer game_deinit(game)
-
-	for !rl.WindowShouldClose() {
-		if game.current_state == .Stage_Select {
-			update_stage_select(&game)
-		} else if game.current_state == .Gameplay {
-			update_gameplay(&game)
-		}
-
-		rl.BeginDrawing()
-		rl.ClearBackground({30, 30, 45, 255})
-
-		if game.current_state == .Stage_Select {
-			draw_stage_select(game)
-		} else if game.current_state == .Gameplay {
-			draw_gameplay(game)
-		}
-
-		rl.EndDrawing()
+shutdown :: proc() {
+	when ODIN_OS != .JS {
+		game_deinit(game)
 	}
+	rl.CloseWindow()
+}
+
+update :: proc() {
+	if game.current_state == .Stage_Select {
+		update_stage_select(&game)
+	} else if game.current_state == .Gameplay {
+		update_gameplay(&game)
+	}
+
+	rl.BeginDrawing()
+	rl.ClearBackground({30, 30, 45, 255})
+
+	if game.current_state == .Stage_Select {
+		draw_stage_select(game)
+	} else if game.current_state == .Gameplay {
+		draw_gameplay(game)
+	}
+
+	rl.EndDrawing()
+}
+
+should_run :: proc() -> bool {
+	when ODIN_OS != .JS {
+		// Never run this proc in browser. It contains a 16 ms sleep on web!
+		if rl.WindowShouldClose() {
+			run = false
+		}
+	}
+
+	return run
+}
+
+parent_window_size_changed :: proc(w, h: int) {
+	// rl.SetWindowSize(c.int(w), c.int(h))
 }
