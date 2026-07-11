@@ -53,6 +53,7 @@ Game :: struct {
 	btn_down_bounds:  rl.Rectangle,
 	btn_left_bounds:  rl.Rectangle,
 	btn_right_bounds: rl.Rectangle,
+	btn_enter_bounds: rl.Rectangle,
 
 	// リソース
 	block_tilemap:    rl.Texture2D,
@@ -61,6 +62,7 @@ Game :: struct {
 	down_texture:     rl.Texture2D,
 	left_texture:     rl.Texture2D,
 	right_texture:    rl.Texture2D,
+	enter_texture:    rl.Texture2D,
 }
 
 
@@ -75,6 +77,7 @@ Button :: enum {
 	Down,
 	Left,
 	Right,
+	Enter,
 }
 
 game_init :: proc() -> Game {
@@ -103,6 +106,12 @@ game_init :: proc() -> Game {
 		width  = f32(BTN_SIZE),
 		height = f32(BTN_SIZE),
 	}
+	btn_enter_bounds := rl.Rectangle {
+		x      = f32((WINDOW_WIDTH - BTN_SIZE * 1) / 2),
+		y      = f32(WINDOW_HEIGHT - BTN_SIZE * 2) - TWEAK_Y,
+		width  = f32(BTN_SIZE),
+		height = f32(BTN_SIZE),
+	}
 
 	game := Game {
 		current_level    = 0,
@@ -122,12 +131,14 @@ game_init :: proc() -> Game {
 		btn_down_bounds  = btn_down_bounds,
 		btn_left_bounds  = btn_left_bounds,
 		btn_right_bounds = btn_right_bounds,
+		btn_enter_bounds = btn_enter_bounds,
 		block_tilemap    = rl.LoadTexture("assets/block.png"),
 		player_tilemap   = rl.LoadTexture("assets/player.png"),
 		up_texture       = rl.LoadTexture("assets/button/up.png"),
 		down_texture     = rl.LoadTexture("assets/button/down.png"),
 		left_texture     = rl.LoadTexture("assets/button/left.png"),
 		right_texture    = rl.LoadTexture("assets/button/right.png"),
+		enter_texture    = rl.LoadTexture("assets/button/enter.png"),
 	}
 
 	start_grid := PLAYER_START_GRID[game.current_level]
@@ -152,6 +163,7 @@ game_deinit :: proc(game: Game) {
 	rl.UnloadTexture(game.down_texture)
 	rl.UnloadTexture(game.left_texture)
 	rl.UnloadTexture(game.right_texture)
+	rl.UnloadTexture(game.enter_texture)
 }
 
 prepare_next_stage :: proc(game: ^Game) {
@@ -293,7 +305,7 @@ update_stage_select :: proc(game: ^Game) {
 	}
 
 	// --- 決定処理 ---
-	if rl.IsKeyPressed(.ENTER) || rl.IsKeyPressed(.SPACE) {
+	if rl.IsKeyPressed(.ENTER) || rl.IsKeyPressed(.SPACE) || is_btn_pressed(game, .Enter) {
 		game.current_state = .Gameplay
 		game.current_level = game.selected_stage
 		prepare_next_stage(game)
@@ -303,16 +315,16 @@ update_stage_select :: proc(game: ^Game) {
 
 update_gameplay :: proc(game: ^Game) {
 	if !game.is_moving {
-		if rl.IsKeyDown(.LEFT) {
+		if rl.IsKeyDown(.LEFT) || is_btn_down(game, .Left) {
 			game.move_dir = {-1, 0}
 			game.player_dir_row = PLAYER_LEFT
-		} else if rl.IsKeyDown(.RIGHT) {
+		} else if rl.IsKeyDown(.RIGHT) || is_btn_down(game, .Right) {
 			game.move_dir = {1, 0}
 			game.player_dir_row = PLAYER_RIGHT
-		} else if rl.IsKeyDown(.UP) {
+		} else if rl.IsKeyDown(.UP) || is_btn_down(game, .Up) {
 			game.move_dir = {0, -1}
 			game.player_dir_row = PLAYER_UP
-		} else if rl.IsKeyDown(.DOWN) {
+		} else if rl.IsKeyDown(.DOWN) || is_btn_down(game, .Down) {
 			game.move_dir = {0, 1}
 			game.player_dir_row = PLAYER_DOWN
 		}
@@ -477,35 +489,7 @@ draw_stage_select :: proc(game: Game) {
 	info_y := i32(WINDOW_HEIGHT - 35)
 	rl.DrawText(cstring(INFO_TEXT), info_x, info_y, INFO_FONT_SIZE, rl.GRAY)
 
-	// BUTTONS
-	// UP
-	rl.DrawTextureRec(
-		game.up_texture,
-		rl.Rectangle{0, 0, f32(BTN_SIZE), f32(BTN_SIZE)},
-		rl.Vector2{game.btn_up_bounds.x, game.btn_up_bounds.y},
-		rl.WHITE,
-	)
-	// DOWN
-	rl.DrawTextureRec(
-		game.down_texture,
-		rl.Rectangle{0, 0, f32(BTN_SIZE), f32(BTN_SIZE)},
-		rl.Vector2{game.btn_down_bounds.x, game.btn_down_bounds.y},
-		rl.WHITE,
-	)
-	// LEFT
-	rl.DrawTextureRec(
-		game.left_texture,
-		rl.Rectangle{0, 0, f32(BTN_SIZE), f32(BTN_SIZE)},
-		rl.Vector2{game.btn_left_bounds.x, game.btn_left_bounds.y},
-		rl.WHITE,
-	)
-	// RIGHT
-	rl.DrawTextureRec(
-		game.right_texture,
-		rl.Rectangle{0, 0, f32(BTN_SIZE), f32(BTN_SIZE)},
-		rl.Vector2{game.btn_right_bounds.x, game.btn_right_bounds.y},
-		rl.WHITE,
-	)
+	draw_ui(game)
 }
 
 draw_gameplay :: proc(game: Game) {
@@ -535,6 +519,46 @@ draw_gameplay :: proc(game: Game) {
 		height = f32(TILE_SIZE),
 	}
 	rl.DrawTextureRec(game.player_tilemap, source_rec, game.player_pos, rl.WHITE)
+
+	draw_ui(game)
+}
+
+draw_ui :: proc(game: Game) {
+	// UP
+	rl.DrawTextureRec(
+		game.up_texture,
+		rl.Rectangle{0, 0, f32(BTN_SIZE), f32(BTN_SIZE)},
+		rl.Vector2{game.btn_up_bounds.x, game.btn_up_bounds.y},
+		rl.WHITE,
+	)
+	// DOWN
+	rl.DrawTextureRec(
+		game.down_texture,
+		rl.Rectangle{0, 0, f32(BTN_SIZE), f32(BTN_SIZE)},
+		rl.Vector2{game.btn_down_bounds.x, game.btn_down_bounds.y},
+		rl.WHITE,
+	)
+	// LEFT
+	rl.DrawTextureRec(
+		game.left_texture,
+		rl.Rectangle{0, 0, f32(BTN_SIZE), f32(BTN_SIZE)},
+		rl.Vector2{game.btn_left_bounds.x, game.btn_left_bounds.y},
+		rl.WHITE,
+	)
+	// RIGHT
+	rl.DrawTextureRec(
+		game.right_texture,
+		rl.Rectangle{0, 0, f32(BTN_SIZE), f32(BTN_SIZE)},
+		rl.Vector2{game.btn_right_bounds.x, game.btn_right_bounds.y},
+		rl.WHITE,
+	)
+	// ENTER
+	rl.DrawTextureRec(
+		game.enter_texture,
+		rl.Rectangle{0, 0, f32(BTN_SIZE), f32(BTN_SIZE)},
+		rl.Vector2{game.btn_enter_bounds.x, game.btn_enter_bounds.y},
+		rl.WHITE,
+	)
 }
 
 is_btn_pressed :: proc(game: ^Game, btn: Button) -> bool {
@@ -549,6 +573,31 @@ is_btn_pressed :: proc(game: ^Game, btn: Button) -> bool {
 			bounds = game.btn_left_bounds
 		case .Right:
 			bounds = game.btn_right_bounds
+		case .Enter:
+			bounds = game.btn_enter_bounds
+		}
+		mouse_pos := rl.GetMousePosition()
+		if rl.CheckCollisionPointRec(mouse_pos, bounds) {
+			return true
+		}
+	}
+	return false
+}
+
+is_btn_down :: proc(game: ^Game, btn: Button) -> bool {
+	if rl.IsMouseButtonDown(rl.MouseButton.LEFT) {
+		bounds: rl.Rectangle
+		switch btn {
+		case .Up:
+			bounds = game.btn_up_bounds
+		case .Down:
+			bounds = game.btn_down_bounds
+		case .Left:
+			bounds = game.btn_left_bounds
+		case .Right:
+			bounds = game.btn_right_bounds
+		case .Enter:
+			bounds = game.btn_enter_bounds
 		}
 		mouse_pos := rl.GetMousePosition()
 		if rl.CheckCollisionPointRec(mouse_pos, bounds) {
