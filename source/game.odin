@@ -44,8 +44,7 @@ Game :: struct {
 	// 現在荷物を押しているか
 	is_pushing:       bool,
 	// 押している荷物の元のグリッド
-	cargo_grid_x:     int,
-	cargo_grid_y:     int,
+	cargo_grid:       rl.Vector2,
 	// 荷物の動的な描画座標
 	cargo_render_pos: rl.Vector2,
 
@@ -140,8 +139,7 @@ game_init :: proc() -> Game {
 		moved_pixels     = 0,
 		player_dir_row   = PLAYER_DOWN,
 		is_pushing       = false,
-		cargo_grid_x     = -1,
-		cargo_grid_y     = -1,
+		cargo_grid       = {-1, -1},
 		cargo_render_pos = rl.Vector2{0, 0},
 		current_frame    = 0,
 		anim_timer       = 0,
@@ -402,13 +400,13 @@ update_gameplay :: proc(game: ^Game) {
 					   TILE_CARGO_ID {
 					game.is_moving = true
 					game.is_pushing = true
-					game.cargo_grid_x = next_x
-					game.cargo_grid_y = next_y
+					game.cargo_grid.x = f32(next_x)
+					game.cargo_grid.y = f32(next_y)
 
 					offset_x, offset_y := get_stage_offset(game.current_level)
 					game.cargo_render_pos = rl.Vector2 {
-						f32(game.cargo_grid_x * TILE_SIZE) + offset_x,
-						f32(game.cargo_grid_y * TILE_SIZE) + offset_y,
+						game.cargo_grid.x * f32(TILE_SIZE) + offset_x,
+						game.cargo_grid.y * f32(TILE_SIZE) + offset_y,
 					}
 					game.moved_pixels = 0
 				} else {
@@ -450,10 +448,10 @@ update_gameplay :: proc(game: ^Game) {
 		if game.moved_pixels >= TILE_SIZE {
 			// 荷物を押していた場合、移動完了した瞬間にマップデータを書き換える
 			if game.is_pushing {
-				next_cargo_x := game.cargo_grid_x + int(game.move_dir.x)
-				next_cargo_y := game.cargo_grid_y + int(game.move_dir.y)
+				next_cargo_x := int(game.cargo_grid.x + game.move_dir.x)
+				next_cargo_y := int(game.cargo_grid.y + game.move_dir.y)
 				// 元の位置を空に
-				game.current_stage[LAYER_CARGO_ID][game.cargo_grid_y][game.cargo_grid_x] =
+				game.current_stage[LAYER_CARGO_ID][int(game.cargo_grid.y)][int(game.cargo_grid.x)] =
 					TILE_NONE_ID
 				// 新しい位置に荷物を配置
 				game.current_stage[LAYER_CARGO_ID][next_cargo_y][next_cargo_x] = TILE_CARGO_ID
@@ -550,8 +548,8 @@ draw_gameplay :: proc(game: Game) {
 	// ステージを描画してから、その上にプレイヤーを描画する
 	show_stage(
 		game,
-		game.is_pushing ? game.cargo_grid_x : -1,
-		game.is_pushing ? game.cargo_grid_y : -1,
+		game.is_pushing ? int(game.cargo_grid.x) : -1,
+		game.is_pushing ? int(game.cargo_grid.y) : -1,
 	)
 
 	// 移動中の荷物があれば、アニメーション中の座標で個別に描画
