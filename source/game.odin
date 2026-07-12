@@ -123,13 +123,13 @@ game_init :: proc() -> Game {
 		x      = f32(WINDOW_WIDTH - 120),
 		y      = f32(WINDOW_HEIGHT - BTN_SIZE * 3) - TWEAK_Y + 4,
 		width  = f32(100),
-		height = f32(35),
+		height = f32(50),
 	}
 	btn_back_bounds := rl.Rectangle {
 		x      = f32(WINDOW_WIDTH - 120),
-		y      = f32(WINDOW_HEIGHT - BTN_SIZE * 3) - TWEAK_Y + 4 + 45,
+		y      = f32(WINDOW_HEIGHT - BTN_SIZE * 3) - TWEAK_Y + 4 + 70,
 		width  = f32(100),
-		height = f32(35),
+		height = f32(50),
 	}
 
 	game := Game {
@@ -628,7 +628,7 @@ draw_ui :: proc(game: Game) {
 		rl.DrawText(
 			"Retry",
 			i32(game.btn_retry_bounds.x) + 22,
-			i32(game.btn_retry_bounds.y) + 8,
+			i32(game.btn_retry_bounds.y) + 15,
 			20,
 			rl.GRAY,
 		)
@@ -637,7 +637,7 @@ draw_ui :: proc(game: Game) {
 		rl.DrawText(
 			"Back",
 			i32(game.btn_back_bounds.x) + 22,
-			i32(game.btn_back_bounds.y) + 8,
+			i32(game.btn_back_bounds.y) + 15,
 			20,
 			rl.GRAY,
 		)
