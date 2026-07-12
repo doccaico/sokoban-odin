@@ -10,7 +10,7 @@
 - [Right, D] move right
 - [R] retry
 - [B] back
-- [ESC] exit
+- [Esc] exit
 
 ### Desktop Build
 ```sh
