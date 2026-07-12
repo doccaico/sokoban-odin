@@ -1,7 +1,7 @@
 @echo off
 
 :: Point this to where you installed emscripten.
-REM set EMSCRIPTEN_SDK_DIR=c:\SDK\emsdk
+REM set EMSCRIPTEN_SDK_DIR=C:\Langs\emsdk
 set OUT_DIR=build\web
 
 if not exist %OUT_DIR% mkdir %OUT_DIR%

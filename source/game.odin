@@ -14,13 +14,13 @@ PLAYER_LEFT :: 1
 PLAYER_UP :: 2
 PLAYER_RIGHT :: 3
 
-TILE_SIZE: int : 64
+TILE_SIZE: int : 32
 MENU_COLS: int : 5
 BTN_SIZE: int : 96
 
 Game :: struct {
 	// 現在のステージ
-	current_stage:    [][][]int,
+	current_stage:    [][][]u8,
 	// 現在のレベル
 	current_level:    int,
 	// 現在の状態(State)
@@ -177,7 +177,7 @@ game_init :: proc() -> Game {
 }
 
 game_deinit :: proc(game: Game) {
-	delete_3d_slice(game.current_stage)
+	delete_stage(game.current_stage)
 	rl.UnloadTexture(game.block_tilemap)
 	rl.UnloadTexture(game.player_tilemap)
 	rl.UnloadTexture(game.up_texture)
@@ -187,13 +187,13 @@ game_deinit :: proc(game: Game) {
 	rl.UnloadTexture(game.enter_texture)
 }
 
-clone_3d_slice :: proc(src: [][][]int) -> [][][]int {
+clone_stage :: proc(src: [][][]u8) -> [][][]u8 {
 	// 最外層（1次元目）の配列を確保
-	dst := make([][][]int, len(src))
+	dst := make([][][]u8, len(src))
 
 	for x in 0 ..< len(src) {
 		// 2次元目の配列を確保
-		dst[x] = make([][]int, len(src[x]))
+		dst[x] = make([][]u8, len(src[x]))
 
 		for y in 0 ..< len(src[x]) {
 			// 最内層（3次元目）をクローン
@@ -203,7 +203,7 @@ clone_3d_slice :: proc(src: [][][]int) -> [][][]int {
 	return dst
 }
 
-delete_3d_slice :: proc(src: [][][]int) {
+delete_stage :: proc(src: [][][]u8) {
 	for x in src {
 		for y in x {
 			delete(y)
@@ -229,9 +229,9 @@ make_stage :: proc(game: ^Game) {
 	game.move_dir = {0, 0}
 
 	if game.current_stage != nil {
-		delete_3d_slice(game.current_stage)
+		delete_stage(game.current_stage)
 	}
-	game.current_stage = clone_3d_slice(STAGES[game.current_level])
+	game.current_stage = clone_stage(STAGES[game.current_level])
 }
 
 // すべてのゴールの上に荷物があるかチェックする
@@ -256,7 +256,7 @@ show_stage :: proc(game: Game, skip_cargo_x: int, skip_cargo_y: int) {
 				if i == LAYER_CARGO_ID && k == skip_cargo_x && j == skip_cargo_y do continue
 
 				if val != TILE_NONE_ID {
-					tile_id := val
+					tile_id := int(val)
 					if i == LAYER_CARGO_ID && tile_id == TILE_CARGO_ID {
 						if game.current_stage[LAYER_GOAL_ID][j][k] == TILE_GOAL_ID {
 							// 暗い色の荷物のタイル
@@ -367,6 +367,13 @@ update_stage_select :: proc(game: ^Game) {
 }
 
 update_gameplay :: proc(game: ^Game) {
+	if rl.IsKeyDown(.R) || is_btn_pressed(game, .Retry) {
+		make_stage(game)
+	} else if rl.IsKeyDown(.B) || is_btn_pressed(game, .Back) {
+		game.selected_stage = game.current_level
+		game.current_state = .Stage_Select
+	}
+
 	if !game.is_moving {
 		if rl.IsKeyDown(.LEFT) || is_btn_down(game, .Left) {
 			game.move_dir = {-1, 0}
@@ -380,10 +387,6 @@ update_gameplay :: proc(game: ^Game) {
 		} else if rl.IsKeyDown(.DOWN) || is_btn_down(game, .Down) {
 			game.move_dir = {0, 1}
 			game.player_dir_row = PLAYER_DOWN
-		} else if rl.IsKeyDown(.R) || is_btn_pressed(game, .Retry) {
-			make_stage(game)
-		} else if rl.IsKeyDown(.B) || is_btn_pressed(game, .Back) {
-			game.current_state = .Stage_Select
 		}
 
 		if game.move_dir != {0, 0} {
@@ -433,17 +436,17 @@ update_gameplay :: proc(game: ^Game) {
 
 	// 2. 移動中の処理(毎フレーム4ピクセルずつ完全に等速移動)
 	if game.is_moving {
-		game.player_pos += game.move_dir * 4
+		game.player_pos += game.move_dir * 2
 
 		// プレイヤーと一緒に荷物も4pxずつ滑らかに移動させる
 		if game.is_pushing {
-			game.cargo_render_pos += game.move_dir * 4
+			game.cargo_render_pos += game.move_dir * 2
 		}
 
-		game.moved_pixels += 4
+		game.moved_pixels += 2
 
 		game.anim_timer += 1
-		if game.anim_timer >= 4 {
+		if game.anim_timer >= 8 {
 			game.anim_timer = 0
 			game.current_frame = (game.current_frame + 1) % 3
 		}
@@ -467,8 +470,9 @@ update_gameplay :: proc(game: ^Game) {
 						game.current_level += 1
 						make_stage(game)
 					} else {
-						// 全ステージクリア時の処理(フラグを立ててお祝い画面を出すなど)
-						// fmt.println("ALL STAGES CLEARED!")
+						// 最終ステージクリア時の処理
+						game.selected_stage = 1
+						game.current_state = .Stage_Select
 					}
 				}
 
@@ -641,6 +645,13 @@ draw_ui :: proc(game: Game) {
 		level_str := fmt.ctprintf("-- LEVEL %d --", game.current_level + 1)
 		level_width := rl.MeasureText(level_str, 24)
 		rl.DrawText(level_str, (i32(WINDOW_WIDTH) - level_width) / 2, 16, 24, rl.GRAY)
+		// INFO
+		INFO_TEXT :: "(R) Retry (B) Back"
+		INFO_FONT_SIZE: i32 : 20
+		info_width := rl.MeasureText(fmt.ctprintf("%s", INFO_TEXT), INFO_FONT_SIZE)
+		info_x := (i32(WINDOW_WIDTH) - info_width) / 2
+		info_y := i32(WINDOW_HEIGHT - 35)
+		rl.DrawText(cstring(INFO_TEXT), info_x, info_y, INFO_FONT_SIZE, rl.GRAY)
 	}
 }
 
