@@ -23,13 +23,12 @@ Game :: struct {
 	current_stage:    [][][]u8,
 	// 現在のレベル
 	current_level:    int,
-	// 現在の状態(State)
+	// 現在の状態
 	current_state:    Game_State,
-	// 選択中のステージ(Title画面)
+	// 選択中のステージ
 	selected_stage:   int,
-	// プレイヤーの初期グリッド位置(例: 3マス目、3マス目)
-	player_grid_x:    int,
-	player_grid_y:    int,
+	// 現在のプレイヤーのグリッド位置
+	player_grid:      rl.Vector2,
 	// プレイヤーのポジション(px)
 	player_pos:       rl.Vector2,
 	// 動いている最中かどうか
@@ -162,15 +161,13 @@ game_init :: proc() -> Game {
 		enter_texture    = rl.LoadTexture("assets/button/enter.png"),
 	}
 
-	start_grid := PLAYER_START_GRID[game.current_level]
-	game.player_grid_x = int(start_grid.x)
-	game.player_grid_y = int(start_grid.y)
+	game.player_grid = PLAYER_START_GRID[game.current_level]
 
 	// ピクセル座標に変換し、マップのオフセットを足す(これでステージのマスと完璧に重なる)
 	offset_x, offset_y := get_stage_offset(game.current_level)
 	game.player_pos = rl.Vector2 {
-		f32(game.player_grid_x * TILE_SIZE) + offset_x,
-		f32(game.player_grid_y * TILE_SIZE) + offset_y,
+		game.player_grid.x * f32(TILE_SIZE) + offset_x,
+		game.player_grid.y * f32(TILE_SIZE) + offset_y,
 	}
 
 	return game
@@ -215,14 +212,12 @@ delete_stage :: proc(src: [][][]u8) {
 
 
 make_stage :: proc(game: ^Game) {
-	start_grid := PLAYER_START_GRID[game.current_level]
-	game.player_grid_x = int(start_grid.x)
-	game.player_grid_y = int(start_grid.y)
+	game.player_grid = PLAYER_START_GRID[game.current_level]
 
 	offset_x, offset_y := get_stage_offset(game.current_level)
 	game.player_pos = rl.Vector2 {
-		f32(game.player_grid_x * TILE_SIZE) + offset_x,
-		f32(game.player_grid_y * TILE_SIZE) + offset_y,
+		game.player_grid.x * f32(TILE_SIZE) + offset_x,
+		game.player_grid.y * f32(TILE_SIZE) + offset_y,
 	}
 
 	game.player_dir_row = PLAYER_DOWN
@@ -390,8 +385,8 @@ update_gameplay :: proc(game: ^Game) {
 		}
 
 		if game.move_dir != {0, 0} {
-			next_x := game.player_grid_x + int(game.move_dir.x)
-			next_y := game.player_grid_y + int(game.move_dir.y)
+			next_x := int(game.player_grid.x + game.move_dir.x)
+			next_y := int(game.player_grid.y + game.move_dir.y)
 
 			if game.current_stage[LAYER_WALL_ID][next_y][next_x] == TILE_WALL_ID {
 				// 進行先に壁がある場合
@@ -478,8 +473,8 @@ update_gameplay :: proc(game: ^Game) {
 
 			}
 
-			game.player_grid_x += int(game.move_dir.x)
-			game.player_grid_y += int(game.move_dir.y)
+			game.player_grid.x += game.move_dir.x
+			game.player_grid.y += game.move_dir.y
 			game.is_moving = false
 			game.is_pushing = false
 			game.move_dir = {0, 0}
