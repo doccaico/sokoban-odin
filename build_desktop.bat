@@ -6,7 +6,7 @@ if not exist %OUT_DIR% mkdir %OUT_DIR%
 set "release_flags="
 
 if "%~1"=="--release" (
-    set "release_flags=-o:speed"
+    set "release_flags=-o:speed -subsystem:windows"
 )
 
 odin build source\main_desktop %release_flags% -strict-style -out:%OUT_DIR%\game_desktop.exe
