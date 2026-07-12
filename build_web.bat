@@ -14,9 +14,15 @@ REM call %EMSCRIPTEN_SDK_DIR%\emsdk_env.bat
 ::
 :: The emcc call will be fed the actual raylib library file. That stuff will end
 :: up in env.o
-::
+
+set "release_flags="
+
+if "%~1"=="--release" (
+    set "release_flags=-o:size"
+)
+
 :: Note that there is a rayGUI equivalent: -define:RAYGUI_WASM_LIB=env.o
-odin build source\main_web -target:js_wasm32 -build-mode:obj -define:RAYLIB_WASM_LIB=env.o -strict-style -out:%OUT_DIR%\game.wasm.obj
+odin build source\main_web %release_flags% -target:js_wasm32 -build-mode:obj -define:RAYLIB_WASM_LIB=env.o -strict-style -out:%OUT_DIR%\game.wasm.obj
 IF %ERRORLEVEL% NEQ 0 exit /b 1
 
 for /f "delims=" %%i in ('odin root') do set "ODIN_PATH=%%i"
