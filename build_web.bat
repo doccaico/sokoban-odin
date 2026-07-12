@@ -35,6 +35,10 @@ set files=%OUT_DIR%\game.wasm.obj "%ODIN_PATH%\vendor\raylib\wasm\libraylib.web.
 :: source/main_web/main_web.odin
 set flags=-sEXPORTED_RUNTIME_METHODS=['HEAPF32'] -sUSE_GLFW=3 -sWASM_BIGINT -sWARN_ON_UNDEFINED_SYMBOLS=0 -sASSERTIONS --shell-file source\main_web\index_template.html --preload-file assets
 
+if "%~1"=="--release" (
+    set "flags=-O2 %flags%"
+)
+
 :: For debugging: Add `-g` to `emcc` (gives better error callstack in chrome)
 ::
 :: This uses `cmd /c` to avoid emcc stealing the whole command prompt. Otherwise
