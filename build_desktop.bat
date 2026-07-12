@@ -1,6 +1,6 @@
 @echo off
 
-set OUT_DIR=build\desktop
+set OUT_DIR=build
 if not exist %OUT_DIR% mkdir %OUT_DIR%
 
 set "release_flags="
