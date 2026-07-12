@@ -367,9 +367,9 @@ update_stage_select :: proc(game: ^Game) {
 }
 
 update_gameplay :: proc(game: ^Game) {
-	if rl.IsKeyDown(.R) || is_btn_pressed(game, .Retry) {
+	if rl.IsKeyPressed(.R) || is_btn_pressed(game, .Retry) {
 		make_stage(game)
-	} else if rl.IsKeyDown(.B) || is_btn_pressed(game, .Back) {
+	} else if rl.IsKeyPressed(.B) || is_btn_pressed(game, .Back) {
 		game.selected_stage = game.current_level
 		game.current_state = .Stage_Select
 	}
