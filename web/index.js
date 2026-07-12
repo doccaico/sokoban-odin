@@ -71,7 +71,7 @@ var ENVIRONMENT_IS_SHELL = !ENVIRONMENT_IS_WEB && !ENVIRONMENT_IS_NODE && !ENVIR
 
 // --pre-jses are emitted after the Module integration code, so that they can
 // refer to Module (if they choose; they can also define Module)
-// include: C:\Users\doccaico\AppData\Local\Temp\tmpbpmwtr69.js
+// include: C:\Users\doccaico\AppData\Local\Temp\tmpldhn6rnz.js
 
   if (!Module['expectedDataFileDownloads']) Module['expectedDataFileDownloads'] = 0;
   Module['expectedDataFileDownloads']++;
@@ -201,25 +201,25 @@ Module['FS_createPath']("/assets", "button", true, true);
     }
 
     }
-    loadPackage({"files": [{"filename": "/assets/block.png", "start": 0, "end": 2358}, {"filename": "/assets/button/down.png", "start": 2358, "end": 4393}, {"filename": "/assets/button/enter.png", "start": 4393, "end": 6198}, {"filename": "/assets/button/left.png", "start": 6198, "end": 8314}, {"filename": "/assets/button/right.png", "start": 8314, "end": 10348}, {"filename": "/assets/button/up.png", "start": 10348, "end": 12320}, {"filename": "/assets/player.png", "start": 12320, "end": 16809}], "remote_package_size": 16809});
+    loadPackage({"files": [{"filename": "/assets/block.png", "start": 0, "end": 3801}, {"filename": "/assets/button/down.png", "start": 3801, "end": 5836}, {"filename": "/assets/button/enter.png", "start": 5836, "end": 7641}, {"filename": "/assets/button/left.png", "start": 7641, "end": 9757}, {"filename": "/assets/button/right.png", "start": 9757, "end": 11791}, {"filename": "/assets/button/up.png", "start": 11791, "end": 13763}, {"filename": "/assets/player.png", "start": 13763, "end": 22630}], "remote_package_size": 22630});
 
   })();
 
-// end include: C:\Users\doccaico\AppData\Local\Temp\tmpbpmwtr69.js
-// include: C:\Users\doccaico\AppData\Local\Temp\tmprshbzmy2.js
+// end include: C:\Users\doccaico\AppData\Local\Temp\tmpldhn6rnz.js
+// include: C:\Users\doccaico\AppData\Local\Temp\tmp8vitzw0d.js
 
     // All the pre-js content up to here must remain later on, we need to run
     // it.
     if ((typeof ENVIRONMENT_IS_WASM_WORKER != 'undefined' && ENVIRONMENT_IS_WASM_WORKER) || (typeof ENVIRONMENT_IS_PTHREAD != 'undefined' && ENVIRONMENT_IS_PTHREAD) || (typeof ENVIRONMENT_IS_AUDIO_WORKLET != 'undefined' && ENVIRONMENT_IS_AUDIO_WORKLET)) Module['preRun'] = [];
     var necessaryPreJSTasks = Module['preRun'].slice();
-  // end include: C:\Users\doccaico\AppData\Local\Temp\tmprshbzmy2.js
-// include: C:\Users\doccaico\AppData\Local\Temp\tmpfw3b30f4.js
+  // end include: C:\Users\doccaico\AppData\Local\Temp\tmp8vitzw0d.js
+// include: C:\Users\doccaico\AppData\Local\Temp\tmpwnu_ifjj.js
 
     if (!Module['preRun']) throw 'Module.preRun should exist because file support used it; did a pre-js delete it?';
     necessaryPreJSTasks.forEach((task) => {
       if (Module['preRun'].indexOf(task) < 0) throw 'All preRun tasks that exist before user pre-js code should remain after; did you replace Module or modify Module.preRun?';
     });
-  // end include: C:\Users\doccaico\AppData\Local\Temp\tmpfw3b30f4.js
+  // end include: C:\Users\doccaico\AppData\Local\Temp\tmpwnu_ifjj.js
 
 
 var arguments_ = [];

@@ -14,7 +14,7 @@ PLAYER_LEFT :: 1
 PLAYER_UP :: 2
 PLAYER_RIGHT :: 3
 
-TILE_SIZE: int : 32
+TILE_SIZE: int : 48
 MENU_COLS: int : 5
 BTN_SIZE: int : 96
 
@@ -434,16 +434,16 @@ update_gameplay :: proc(game: ^Game) {
 		}
 	}
 
-	// 2. 移動中の処理(毎フレーム4ピクセルずつ完全に等速移動)
+	// 2. 移動中の処理(毎フレーム3ピクセルずつ完全に等速移動)
 	if game.is_moving {
-		game.player_pos += game.move_dir * 2
+		game.player_pos += game.move_dir * 3
 
-		// プレイヤーと一緒に荷物も4pxずつ滑らかに移動させる
+		// プレイヤーと一緒に荷物も3pxずつ滑らかに移動させる
 		if game.is_pushing {
-			game.cargo_render_pos += game.move_dir * 2
+			game.cargo_render_pos += game.move_dir * 3
 		}
 
-		game.moved_pixels += 2
+		game.moved_pixels += 3
 
 		game.anim_timer += 1
 		if game.anim_timer >= 8 {
