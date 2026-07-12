@@ -285,7 +285,7 @@ update_stage_select :: proc(game: ^Game) {
 	total_rows := (MAX_LEVELS + MENU_COLS - 1) / MENU_COLS
 
 	// --- 右移動 ---
-	if rl.IsKeyPressed(.RIGHT) || is_btn_pressed(game, .Right) {
+	if rl.IsKeyPressed(.RIGHT) || rl.IsKeyPressed(.D) || is_btn_pressed(game, .Right) {
 		// 現在の行(0行目、1行目...)を特定
 		current_row := game.selected_stage / MENU_COLS
 
@@ -302,7 +302,7 @@ update_stage_select :: proc(game: ^Game) {
 	}
 
 	// --- 左移動 ---
-	if rl.IsKeyPressed(.LEFT) || is_btn_pressed(game, .Left) {
+	if rl.IsKeyPressed(.LEFT) || rl.IsKeyPressed(.A) || is_btn_pressed(game, .Left) {
 		current_row := game.selected_stage / MENU_COLS
 
 		// 現在すでにその行の左端(先頭)にいる場合
@@ -323,7 +323,7 @@ update_stage_select :: proc(game: ^Game) {
 	}
 
 	// --- 下移動 ---
-	if rl.IsKeyPressed(.DOWN) || is_btn_pressed(game, .Down) {
+	if rl.IsKeyPressed(.DOWN) || rl.IsKeyPressed(.S) || is_btn_pressed(game, .Down) {
 		current_col := game.selected_stage % MENU_COLS
 		next_in_col := game.selected_stage + MENU_COLS
 
@@ -337,7 +337,7 @@ update_stage_select :: proc(game: ^Game) {
 	}
 
 	// --- 上移動 ---
-	if rl.IsKeyPressed(.UP) || is_btn_pressed(game, .Up) {
+	if rl.IsKeyPressed(.UP) || rl.IsKeyPressed(.W) || is_btn_pressed(game, .Up) {
 		current_col := game.selected_stage % MENU_COLS
 
 		// すでに最上段(0行目)にいる場合
@@ -375,16 +375,16 @@ update_gameplay :: proc(game: ^Game) {
 	}
 
 	if !game.is_moving {
-		if rl.IsKeyDown(.LEFT) || is_btn_down(game, .Left) {
+		if rl.IsKeyDown(.LEFT) || rl.IsKeyDown(.A) || is_btn_down(game, .Left) {
 			game.move_dir = {-1, 0}
 			game.player_dir_row = PLAYER_LEFT
-		} else if rl.IsKeyDown(.RIGHT) || is_btn_down(game, .Right) {
+		} else if rl.IsKeyDown(.RIGHT) || rl.IsKeyDown(.D) || is_btn_down(game, .Right) {
 			game.move_dir = {1, 0}
 			game.player_dir_row = PLAYER_RIGHT
-		} else if rl.IsKeyDown(.UP) || is_btn_down(game, .Up) {
+		} else if rl.IsKeyDown(.UP) || rl.IsKeyDown(.W) || is_btn_down(game, .Up) {
 			game.move_dir = {0, -1}
 			game.player_dir_row = PLAYER_UP
-		} else if rl.IsKeyDown(.DOWN) || is_btn_down(game, .Down) {
+		} else if rl.IsKeyDown(.DOWN) || rl.IsKeyDown(.S) || is_btn_down(game, .Down) {
 			game.move_dir = {0, 1}
 			game.player_dir_row = PLAYER_DOWN
 		}
