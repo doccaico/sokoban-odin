@@ -20,7 +20,7 @@ $ build_desktop.bat
 # run
 $ build\desktop\game_desktop.exe
 
-# or
+# build and run in one line
 $ call build_desktop.bat && build\desktop\game_desktop.exe
 
 # debug build (for checking memory leaks)
@@ -33,10 +33,8 @@ $ build_desktop.bat --release
 ```sh
 # build
 $ build_web.bat
-# run
+# go to localhost:8000 in your browser
 $ python -m http.server
-
-# Go to localhost:8000 in your browser
 
 # release build
 $ build_web.bat --release
