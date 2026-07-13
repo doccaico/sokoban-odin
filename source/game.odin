@@ -390,7 +390,7 @@ update_gameplay :: proc(game: ^Game) {
 		clear_history(game)
 		make_stage(game)
 	} else if rl.IsKeyPressed(.U) || is_btn_pressed(game, .Undo) {
-		undo(game)
+		if !game.is_moving do undo(game)
 		return
 	} else if rl.IsKeyPressed(.B) || is_btn_pressed(game, .Title) {
 		game.selected_stage = game.current_level
