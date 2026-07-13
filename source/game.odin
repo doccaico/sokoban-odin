@@ -48,16 +48,24 @@ Game :: struct {
 	// 荷物の動的な描画座標
 	cargo_render_pos: rl.Vector2,
 
+	// ヒストリー (for add_history and undo)
+	move_history:     [dynamic]Step,
+	// ステップ数
+	step:             int,
+
 	// 現在のフレームとアニメーションのタイマー
 	current_frame:    int,
 	anim_timer:       int,
+
+	// ボタンの範囲
 	btn_up_bounds:    rl.Rectangle,
 	btn_down_bounds:  rl.Rectangle,
 	btn_left_bounds:  rl.Rectangle,
 	btn_right_bounds: rl.Rectangle,
 	btn_enter_bounds: rl.Rectangle,
 	btn_retry_bounds: rl.Rectangle,
-	btn_back_bounds:  rl.Rectangle,
+	btn_undo_bounds:  rl.Rectangle,
+	btn_title_bounds: rl.Rectangle,
 
 	// リソース
 	block_tilemap:    rl.Texture2D,
@@ -69,6 +77,13 @@ Game :: struct {
 	enter_texture:    rl.Texture2D,
 }
 
+Step :: struct {
+	player_grid:    rl.Vector2,
+	cargo_grid:     rl.Vector2,
+	move_dir:       rl.Vector2,
+	player_dir_row: int,
+	is_cargo_moved: bool,
+}
 
 Game_State :: enum {
 	Stage_Select,
@@ -82,7 +97,8 @@ Button :: enum {
 	Right,
 	Enter,
 	Retry,
-	Back,
+	Undo,
+	Title,
 }
 
 game_init :: proc() -> Game {
@@ -123,9 +139,15 @@ game_init :: proc() -> Game {
 		width  = f32(100),
 		height = f32(50),
 	}
-	btn_back_bounds := rl.Rectangle {
+	btn_undo_bounds := rl.Rectangle {
 		x      = f32(WINDOW_WIDTH - 120),
 		y      = f32(WINDOW_HEIGHT - BTN_SIZE * 3) - TWEAK_Y + 4 + 70,
+		width  = f32(100),
+		height = f32(50),
+	}
+	btn_title_bounds := rl.Rectangle {
+		x      = f32(WINDOW_WIDTH - 120),
+		y      = f32(WINDOW_HEIGHT - BTN_SIZE * 3) - TWEAK_Y + 4 + 140,
 		width  = f32(100),
 		height = f32(50),
 	}
@@ -141,6 +163,7 @@ game_init :: proc() -> Game {
 		is_pushing       = false,
 		cargo_grid       = {-1, -1},
 		cargo_render_pos = rl.Vector2{0, 0},
+		step             = 0,
 		current_frame    = 0,
 		anim_timer       = 0,
 		btn_up_bounds    = btn_up_bounds,
@@ -149,7 +172,8 @@ game_init :: proc() -> Game {
 		btn_right_bounds = btn_right_bounds,
 		btn_enter_bounds = btn_enter_bounds,
 		btn_retry_bounds = btn_retry_bounds,
-		btn_back_bounds  = btn_back_bounds,
+		btn_undo_bounds  = btn_undo_bounds,
+		btn_title_bounds = btn_title_bounds,
 		block_tilemap    = rl.LoadTexture("assets/block.png"),
 		player_tilemap   = rl.LoadTexture("assets/player.png"),
 		up_texture       = rl.LoadTexture("assets/button/up.png"),
@@ -172,6 +196,7 @@ game_init :: proc() -> Game {
 }
 
 game_deinit :: proc(game: Game) {
+	delete(game.move_history)
 	delete_stage(game.current_stage)
 	rl.UnloadTexture(game.block_tilemap)
 	rl.UnloadTexture(game.player_tilemap)
@@ -220,6 +245,7 @@ make_stage :: proc(game: ^Game) {
 
 	game.player_dir_row = PLAYER_DOWN
 	game.move_dir = {0, 0}
+	game.step = 0
 
 	if game.current_stage != nil {
 		delete_stage(game.current_stage)
@@ -361,10 +387,15 @@ update_stage_select :: proc(game: ^Game) {
 
 update_gameplay :: proc(game: ^Game) {
 	if rl.IsKeyPressed(.R) || is_btn_pressed(game, .Retry) {
+		clear_history(game)
 		make_stage(game)
-	} else if rl.IsKeyPressed(.B) || is_btn_pressed(game, .Back) {
+	} else if rl.IsKeyPressed(.U) || is_btn_pressed(game, .Undo) {
+		undo(game)
+		return
+	} else if rl.IsKeyPressed(.B) || is_btn_pressed(game, .Title) {
 		game.selected_stage = game.current_level
 		game.current_state = .Stage_Select
+		clear_history(game)
 	}
 
 	if !game.is_moving {
@@ -414,6 +445,9 @@ update_gameplay :: proc(game: ^Game) {
 					game.move_dir = {0, 0}
 				}
 			} else {
+
+				add_history(game, false, game.move_dir)
+
 				// 進行先が何もない空間(床)の場合
 				game.is_moving = true
 				game.is_pushing = false
@@ -448,6 +482,8 @@ update_gameplay :: proc(game: ^Game) {
 		if game.moved_pixels >= TILE_SIZE {
 			// 荷物を押していた場合、移動完了した瞬間にマップデータを書き換える
 			if game.is_pushing {
+				add_history(game, true, game.move_dir)
+
 				next_cargo_x := int(game.cargo_grid.x + game.move_dir.x)
 				next_cargo_y := int(game.cargo_grid.y + game.move_dir.y)
 				// 元の位置を空に
@@ -461,6 +497,7 @@ update_gameplay :: proc(game: ^Game) {
 					// 次のステージがあるか確認
 					if game.current_level + 1 < MAX_LEVELS {
 						game.current_level += 1
+						clear_history(game)
 						make_stage(game)
 					} else {
 						// 最終ステージクリア時の処理
@@ -625,21 +662,34 @@ draw_ui :: proc(game: Game) {
 			20,
 			rl.GRAY,
 		)
-		// BACK
-		rl.DrawRectangleLinesEx(game.btn_back_bounds, 2, rl.GRAY)
+		// UNDO
+		rl.DrawRectangleLinesEx(game.btn_undo_bounds, 2, rl.GRAY)
 		rl.DrawText(
-			"Back",
-			i32(game.btn_back_bounds.x) + 22,
-			i32(game.btn_back_bounds.y) + 15,
+			"Undo",
+			i32(game.btn_undo_bounds.x) + 22,
+			i32(game.btn_undo_bounds.y) + 15,
+			20,
+			rl.GRAY,
+		)
+		// TITLE
+		rl.DrawRectangleLinesEx(game.btn_title_bounds, 2, rl.GRAY)
+		rl.DrawText(
+			"Title",
+			i32(game.btn_title_bounds.x) + 22,
+			i32(game.btn_title_bounds.y) + 15,
 			20,
 			rl.GRAY,
 		)
 		// LEVEL
 		level_str := fmt.ctprintf("-- LEVEL %d --", game.current_level + 1)
 		level_width := rl.MeasureText(level_str, 24)
-		rl.DrawText(level_str, (i32(WINDOW_WIDTH) - level_width) / 2, 16, 24, rl.GRAY)
+		rl.DrawText(level_str, (i32(WINDOW_WIDTH) - level_width) / 2, 20, 24, rl.GRAY)
+		// STEP
+		step_str := fmt.ctprintf("STEP: %d", game.step)
+		step_width := rl.MeasureText(step_str, 24)
+		rl.DrawText(step_str, (i32(WINDOW_WIDTH) - step_width) / 2 + 220, 20, 24, rl.GRAY)
 		// INFO
-		INFO_TEXT :: "(R) Retry (B) Back"
+		INFO_TEXT :: "(R) Retry (U) Undo (T) Title"
 		INFO_FONT_SIZE: i32 : 20
 		info_width := rl.MeasureText(fmt.ctprintf("%s", INFO_TEXT), INFO_FONT_SIZE)
 		info_x := (i32(WINDOW_WIDTH) - info_width) / 2
@@ -664,8 +714,10 @@ is_btn_pressed :: proc(game: ^Game, btn: Button) -> bool {
 			bounds = game.btn_enter_bounds
 		case .Retry:
 			bounds = game.btn_retry_bounds
-		case .Back:
-			bounds = game.btn_back_bounds
+		case .Undo:
+			bounds = game.btn_undo_bounds
+		case .Title:
+			bounds = game.btn_title_bounds
 		}
 		mouse_pos := rl.GetMousePosition()
 		if rl.CheckCollisionPointRec(mouse_pos, bounds) {
@@ -691,8 +743,10 @@ is_btn_down :: proc(game: ^Game, btn: Button) -> bool {
 			bounds = game.btn_enter_bounds
 		case .Retry:
 			bounds = game.btn_retry_bounds
-		case .Back:
-			bounds = game.btn_back_bounds
+		case .Undo:
+			bounds = game.btn_undo_bounds
+		case .Title:
+			bounds = game.btn_title_bounds
 		}
 		mouse_pos := rl.GetMousePosition()
 		if rl.CheckCollisionPointRec(mouse_pos, bounds) {
@@ -700,6 +754,52 @@ is_btn_down :: proc(game: ^Game, btn: Button) -> bool {
 		}
 	}
 	return false
+}
+
+clear_history :: proc(game: ^Game) {
+	clear(&game.move_history)
+}
+
+add_history :: proc(game: ^Game, is_cargo_moved: bool, move_dir: rl.Vector2) {
+	step := Step {
+		cargo_grid     = game.cargo_grid,
+		player_grid    = game.player_grid,
+		move_dir       = move_dir,
+		player_dir_row = game.player_dir_row,
+		is_cargo_moved = is_cargo_moved,
+	}
+	append(&game.move_history, step)
+
+	game.step += 1
+}
+
+undo :: proc(game: ^Game) {
+	if len(game.move_history) == 0 do return
+
+	step := pop(&game.move_history)
+
+	if step.is_cargo_moved {
+		// 移動先の荷物のTILEをNONEにする
+		next_cargo_x := int(step.cargo_grid.x + step.move_dir.x)
+		next_cargo_y := int(step.cargo_grid.y + step.move_dir.y)
+		game.current_stage[LAYER_CARGO_ID][next_cargo_y][next_cargo_x] = TILE_NONE_ID
+		// 元の荷物のTILEをCARGOにする
+		game.current_stage[LAYER_CARGO_ID][int(step.cargo_grid.y)][int(step.cargo_grid.x)] =
+			TILE_CARGO_ID
+	}
+
+	// プレイヤーの向きを戻す
+	game.player_dir_row = step.player_dir_row
+	// プレイヤーの位置情報を元の位置情報で書き換える
+	offset_x, offset_y := get_stage_offset(game.current_level)
+	game.player_pos = rl.Vector2 {
+		step.player_grid.x * f32(TILE_SIZE) + offset_x,
+		step.player_grid.y * f32(TILE_SIZE) + offset_y,
+	}
+	// プレイヤーのグリッドを元の情報で書き換える
+	game.player_grid = step.player_grid
+
+	game.step -= 1
 }
 
 run: bool
