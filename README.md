@@ -23,7 +23,7 @@ $ build\desktop\game_desktop.exe
 # or
 $ call build_desktop.bat && build\desktop\game_desktop.exe
 
-# debug build
+# debug build (for checking memory leaks)
 $ build_desktop.bat --debug
 
 # release build
