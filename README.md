@@ -9,7 +9,8 @@
 - [Left, A] move left
 - [Right, D] move right
 - [R] retry
-- [B] back
+- [U] undo
+- [T] back to title
 - [Esc] exit
 
 ### Desktop Build
@@ -21,6 +22,9 @@ $ build\desktop\game_desktop.exe
 
 # or
 $ call build_desktop.bat && build\desktop\game_desktop.exe
+
+# debug build
+$ build_desktop.bat --debug
 
 # release build
 $ build_desktop.bat --release
